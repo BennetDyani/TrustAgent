@@ -743,6 +743,48 @@ so that costs a verification call. That is the right price for a copy that would
 
 ---
 
+## Phase 7: Security
+
+### ADR-067: Test injection against the worst case, an obedient model
+
+**Decision.** `tests/security/test_injection.py` replaces the model with a fake that does exactly what the
+injected text asks: it proposes approval and "reassures" with a made-up quote. The test asserts that the rule
+findings, the score and the minimum action are unchanged, the fake quote is discarded, and the case waits for a
+person with nothing paid. Separate tests check that the invoice text reaches the model only inside our delimiters,
+and that every spelling of the closing tag is removed first.
+**Why the worst case.** How well a real model resists is a measured property (evaluation cases E31 and E32;
+notebook 06 shows `gpt-oss-20b` flagging both as social engineering). Whether the *decision* can be moved must
+not depend on it. Security that holds only while the model behaves is not security.
+
+### ADR-068: Authorisation is tested from the outside, and the sweep covers future endpoints
+
+**Decision.** `tests/security/test_access.py` goes through the API. It enumerates `app.routes` and requires 401
+without an identity for every non-public route, so an endpoint added later is covered automatically. It also
+checks: near-miss identities (a list, a path, a supplier id) are refused; case and spacing resolve to the *same*
+person, never another; a request body can't name the approver or the verifier; the verifier can't approve; a
+re-run is required after verification; and there are no decisions before a run or after a case closes.
+**Found by the tests:** `VerificationEvidence` silently ignored unknown fields. That was harmless, since the
+verifier always comes from the header, but inconsistent with ADR-055. It now uses `extra="forbid"`.
+
+### ADR-069: The POPIA test searches everywhere a number could leak, and is proven to fail
+
+**Decision.** An invoice with a full account number goes in through the API. The test then searches for its
+digits, however spaced or dashed, in the SSE stream, the case detail, the logs, every application table (whole
+rows as text), and the **LangGraph checkpoint blobs**. The saved graph state holds the invoice, and it's the place
+nobody thinks to look. The test was run once with redaction switched off, to prove it catches the leak ("full
+account number stored in invoices").
+**Why prove it.** The shipped samples already contain masked numbers, so the first version of this test passed
+without ever seeing a real account number. A security test that can't fail is decoration.
+
+### ADR-070: Least privilege for the agent, stated as a test
+
+The deep-dive agent's toolbox is exactly three read-only lookups, bound to the case, with no arguments. The
+terminal `submit_findings` tool only records findings. A test pins that inventory, so adding a tool that writes,
+pays or approves fails the build and forces a decision. The read-only transaction test (phase 3) covers bugs
+inside the tools.
+
+---
+
 ## Lessons caught during the build
 
 - **Phase 0: a field named `date` shadowed the `date` type.** In both the Pydantic and SQLAlchemy

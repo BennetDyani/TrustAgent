@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -35,6 +35,9 @@ class VerificationRejected(ValueError):
 
 
 class VerificationEvidence(BaseModel):
+    # The verifier comes from the authenticated identity, never the body (ADR-055): unknown fields are rejected.
+    model_config = ConfigDict(extra="forbid")
+
     phone_confirmed: bool
     phone_contact: str
     phone_source: ContactSource
