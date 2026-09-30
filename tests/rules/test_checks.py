@@ -325,6 +325,36 @@ def test_same_amount_same_date_is_a_duplicate():
     assert "DUPLICATE_INVOICE" in flagged(run(b, supplier="SUP-002", others=[a]))
 
 
+def test_same_amount_for_the_same_service_month_is_a_duplicate():
+    # INV-2004 / E15: August re-billed with reworded items and a September date (ADR-066).
+    original = _metro("INV-A", 8, 1)
+    rebilled = original.model_copy(
+        update={
+            "id": "INV-B",
+            "date": dt.date(2026, 9, 15),
+            "line_items": [
+                LineItem(description="Monthly cleaning service - Aug. 2026 (Mon-Fri, offices 1-4)"),
+                LineItem(description="Deep clean - boardroom and executive offices"),
+            ],
+        }
+    )
+    finding = next(i for i in run(rebilled, supplier="SUP-002", others=[original]) if i.type == "DUPLICATE_INVOICE")
+    assert "same service month (August 2026)" in finding.description
+
+
+def test_same_service_month_with_a_different_amount_is_not_a_duplicate():
+    original = _metro("INV-A", 8, 1)
+    extra = original.model_copy(
+        update={
+            "id": "INV-B",
+            "date": dt.date(2026, 8, 20),
+            "amount": Decimal("4200"),
+            "line_items": [LineItem(description="Window washing - August 2026")],
+        }  # fmt: skip
+    )
+    assert "DUPLICATE_INVOICE" not in flagged(run(extra, supplier="SUP-002", others=[original]))
+
+
 def test_duplicate_must_be_same_supplier():
     a = _metro("INV-A", 8, 1).model_copy(update={"supplier_id": "SUP-001"})
     b = _metro("INV-B", 8, 1)

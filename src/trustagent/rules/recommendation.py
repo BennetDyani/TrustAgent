@@ -24,15 +24,23 @@ AI_INDICATOR_TYPES = frozenset({"SOCIAL_ENGINEERING", "DOCUMENT_ANOMALY", "OTHER
 # by phone AND email, using contact details from the onboarding records.
 HOLD_REQUIRED_FINDINGS = frozenset({"BANK_DETAILS_CHANGED"})
 
+# Findings that are never approved straight through, even alone at LOW (policy decision,
+# ADR-065). Each points at who gets paid or who is asking, and in the evaluation set every
+# invoice that fired one was fraud; alone each weighs 25, which is LOW and would approve.
+VERIFY_REQUIRED_FINDINGS = frozenset(
+    {"EMAIL_DOMAIN_MISMATCH", "MULTIPLE_BANK_ACCOUNTS", "SHARED_BANK_ACCOUNT", "ACCOUNT_HOLDER_MISMATCH"}
+)
+
 
 def minimum_action(level: RiskLevel | None, supplier_verified: bool, findings: Iterable[str] = ()) -> Action:
     """The least cautious action allowed.
 
     ``findings`` are the indicator types found. Some force HOLD regardless of
-    the score. An unverified supplier is never recommended for straight
-    approval, however low the score.
+    the score; others rule out straight approval. An unverified supplier is
+    never recommended for straight approval, however low the score.
     """
-    if HOLD_REQUIRED_FINDINGS & set(findings):
+    found = set(findings)
+    if HOLD_REQUIRED_FINDINGS & found:
         return Action.HOLD_PAYMENT
     match level:
         case RiskLevel.CRITICAL | RiskLevel.HIGH:
@@ -40,7 +48,8 @@ def minimum_action(level: RiskLevel | None, supplier_verified: bool, findings: I
         case RiskLevel.MEDIUM:
             return Action.REQUEST_VERIFICATION
         case RiskLevel.LOW:
-            return Action.APPROVE_PAYMENT if supplier_verified else Action.REQUEST_VERIFICATION
+            approvable = supplier_verified and not VERIFY_REQUIRED_FINDINGS & found
+            return Action.APPROVE_PAYMENT if approvable else Action.REQUEST_VERIFICATION
         case _:
             return Action.ESCALATE
 

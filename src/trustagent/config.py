@@ -28,6 +28,8 @@ class Settings(BaseSettings):
     # --- Database -----------------------------------------------------------
     database_url: str = "postgresql+psycopg://trustagent:trustagent@localhost:5433/trustagent"
     test_database_url: str = "postgresql+psycopg://trustagent:trustagent@localhost:5433/trustagent_test"
+    # The evaluation runs in its own database, so it never collides with tests or the demo.
+    eval_database_url: str = "postgresql+psycopg://trustagent:trustagent@localhost:5433/trustagent_eval"
 
     # --- LLM providers ------------------------------------------------------
     # Generator model. Model IDs checked against provider docs (2026-09-30).
@@ -77,6 +79,16 @@ class Settings(BaseSettings):
 
     # --- Agent ---------------------------------------------------------------
     deep_dive_recursion_limit: int = 8
+
+    # --- Evaluation: paid-tier prices per 1M tokens (input, output), USD --------
+    # Sources checked 2026-09-30: ai.google.dev/gemini-api/docs/pricing, console.groq.com/docs/models.
+    # The free tiers used here cost nothing; these show what production would cost.
+    llm_prices_usd: dict[str, tuple[float, float]] = {
+        "gemini-3.5-flash-lite": (0.30, 2.50),
+        "gemini-3.5-flash": (1.50, 9.00),  # output includes thinking tokens
+        "openai/gpt-oss-120b": (0.15, 0.60),
+        "openai/gpt-oss-20b": (0.075, 0.30),
+    }
 
     # --- UI ------------------------------------------------------------------
     api_base_url: str = "http://localhost:8000"

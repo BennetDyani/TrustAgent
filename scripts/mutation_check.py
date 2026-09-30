@@ -33,9 +33,27 @@ M = [
     ("src/trustagent/rules/scoring.py", "if score >= 60:", "if score > 60:", "HIGH boundary"),
     (
         "src/trustagent/rules/recommendation.py",
-        "return Action.APPROVE_PAYMENT if supplier_verified else Action.REQUEST_VERIFICATION",
-        "return Action.APPROVE_PAYMENT",
+        "approvable = supplier_verified and not",
+        "approvable = True or not",
         "LOW unverified",
+    ),
+    (
+        "src/trustagent/rules/recommendation.py",
+        "approvable = supplier_verified and not VERIFY_REQUIRED_FINDINGS & found",
+        "approvable = supplier_verified",
+        "single strong signal needs verification",
+    ),
+    (
+        "src/trustagent/rules/checks.py",
+        "if other.amount == inv.amount else []",
+        "if True else []",
+        "service-month duplicate needs same amount",
+    ),
+    (
+        "src/trustagent/rules/checks.py",
+        "same_period = sorted(months & _service_months(other))",
+        "same_period = []",
+        "service-month duplicate",
     ),
     (
         "src/trustagent/rules/recommendation.py",
@@ -69,7 +87,7 @@ M = [
     ),
     (
         "src/trustagent/rules/recommendation.py",
-        "if HOLD_REQUIRED_FINDINGS & set(findings):",
+        "if HOLD_REQUIRED_FINDINGS & found:",
         "if False:",
         "bank change forces HOLD",
     ),

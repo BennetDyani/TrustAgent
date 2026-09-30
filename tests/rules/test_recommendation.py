@@ -103,6 +103,21 @@ def test_bank_details_change_requires_hold_at_any_level(level):
     assert minimum_action(level, True, findings={"BANK_DETAILS_CHANGED"}) == A.HOLD_PAYMENT
 
 
+# --- one strong account/identity signal is never approved straight through (ADR-065) ------
+
+
+@pytest.mark.parametrize(
+    "finding", ["EMAIL_DOMAIN_MISMATCH", "MULTIPLE_BANK_ACCOUNTS", "SHARED_BANK_ACCOUNT", "ACCOUNT_HOLDER_MISMATCH"]
+)
+def test_single_strong_signal_at_low_requires_verification(finding):
+    assert minimum_action(RiskLevel.LOW, True, findings={finding}) == A.REQUEST_VERIFICATION
+    assert minimum_action(RiskLevel.HIGH, True, findings={finding}) == A.HOLD_PAYMENT  # never lowers the floor
+
+
+def test_weak_signal_alone_at_low_still_approves():
+    assert minimum_action(RiskLevel.LOW, True, findings={"URGENCY_INDICATOR"}) == A.APPROVE_PAYMENT
+
+
 def test_other_findings_do_not_change_the_floor():
     assert minimum_action(RiskLevel.MEDIUM, True, findings={"THRESHOLD_AVOIDANCE"}) == A.REQUEST_VERIFICATION
 

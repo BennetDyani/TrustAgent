@@ -658,6 +658,91 @@ an action arrives. The UI can explain a refusal; it can never permit an action t
 
 ---
 
+## Phase 6: Evaluation
+
+### ADR-060: A hand-labelled dataset of 47 cases, with *acceptable* actions
+
+**Decision.** `evals/generate_dataset.py` writes 36 invoice variants (E01–E36) next to the 11 samples. The set
+covers every rule, clean invoices, near-misses (a legitimate trading-name holder, a rounded amount under the
+threshold), single-signal fraud, social engineering that no rule catches, contract deviations, two prompt
+injections and one scan. 24 of the 47 are fraud. Each label is written by hand. It gives `is_fraud`, the
+*acceptable* actions, the expected rules, AI signals and contract deviation, the preconditions (earlier uploads,
+payment history) and a gold extraction.
+**Why "acceptable actions", not one right answer.** A new supplier's clean invoice can reasonably be verified
+or approved. Forcing one label would score good behaviour as wrong and push the system toward the labeller's
+habits.
+**Why labels are never computed by our code.** A label derived from the rules would make the rules always
+"correct". The dataset has to be able to disagree with the system.
+**Limit.** 47 cases written by the builder are a regression suite, not a measure of real-world fraud rates. The
+next step is real, anonymised invoices labelled by finance staff.
+
+### ADR-061: An offline mode that runs the real pipeline with no model calls
+
+**Decision.** The `offline` configuration injects the gold extraction and makes every model step raise
+`LLMUnavailable`. The real graph then runs the rules, scoring, fallback report and routing, in seconds, for free.
+**Why.** (1) It separates what the rules can do from what the AI adds. The cases the rules miss offline are
+exactly the ones that justify the AI. (2) It makes a regression test that runs after any rule change, with no
+quota. (3) It exercises the fallback path, the path that runs when the provider is down.
+
+### ADR-062: Metrics in priority order: fraud recall first
+
+1. **Fraud recall.** A fraud counts as stopped if the action is anything but approval. We also report the
+   stricter "held or escalated" rate.
+2. **False-positive rate, on payable invoices only.** Verifying a new supplier is policy, not a false alarm.
+3. **What explains them:** extraction accuracy per field, rule precision and recall (exact match per case),
+   contract-deviation recall, retrieval Recall@K and MRR, and report faithfulness.
+4. **Cost and latency**, from the token counts the graph records per step, with prices in configuration.
+
+**Why this order.** A missed fraud costs the invoice amount. A false alarm costs a phone call. The metrics are
+unit-tested (`tests/evaluation/test_metrics.py`), because a wrong metric misleads every decision taken from it.
+
+### ADR-063: The judge runs on a different provider, and is itself checked against people
+
+**Decision.** Faithfulness is graded by an LLM judge on the *other* provider. Groq judges Gemini's reports, and
+Gemini judges Groq's. The judge gets the evidence and the report and must list unsupported claims, then give
+its reasoning, before the PASS/FAIL verdict. Its verdicts are compared with human labels on 12 reports
+(`evals/judge_validation/`), and we report accuracy and Cohen's kappa.
+**Why.** A model grading its own output shares its own blind spots. An unvalidated judge is only an opinion, so
+we report its agreement with people next to its pass rate.
+
+### ADR-064: Provider failures are retried and counted, not scored as system errors
+
+**Decision.** If an intake returns 503, or the AI review is unavailable, the case is retried up to 3 times with a
+wait in between. The number of attempts is recorded, and the report lists the retried cases and any failures
+that remained after retries. Each result is appended to `<config>.jsonl` the moment it finishes.
+**Why.** The first live run hit free-tier limits halfway through. Without retries, a quota burst looked like the
+system failing to stop fraud. Without the per-case file, a quota cut-off lost the whole run.
+**Free-tier limits measured on the way** (for the README's cost section):
+- Gemini allows 15 requests per minute, and **500 requests per model per day, per Google Cloud project**. A second
+  key in the same project shares that quota.
+- Embeddings allow 100 per minute, **counting each text, not each request** (ADR-052).
+- Groq `gpt-oss-120b` allows **200,000 tokens per day**, which is roughly 20–40 investigations.
+
+### ADR-065: One strong account or identity signal is never approved straight through (Bennet's decision)
+
+**Context.** The offline evaluation showed E19 (look-alike email) and E25 (an "alternative" bank account)
+approved. Each of the four account and identity rules weighs 25. Alone that is LOW, and LOW on a verified supplier
+approves. In the dataset these four rules fire on 11 cases, and all 11 are fraud.
+**Decision.** `VERIFY_REQUIRED_FINDINGS` = email domain mismatch, multiple bank accounts, shared bank account,
+account holder mismatch. Any one of them rules out straight approval, so the minimum is Request verification.
+It uses the same mechanism as the bank-change HOLD (ADR-029), and it can only raise the floor.
+**Rejected: raising the weights to 30.** That would also work for the single case, but it moves every score these
+rules contribute to, so combinations climb to HIGH sooner. The floor changes one decision and nothing else.
+**Result (offline, rules only).** Fraud recall went from 0.706 to 0.882, with the false-positive rate unchanged at 0.
+
+### ADR-066: A re-billed service month counts as a duplicate (Bennet's decision)
+
+**Context.** INV-2004 (a real sample) re-bills August: same R18,400, the items reworded with "(Mon-Fri, offices
+1-4)", and dated 15 September. Neither duplicate test matched: the items weren't identical and the date differed.
+It scored 0 and was **approved in the live run**, and the AI didn't catch it either. E15 is the generated twin.
+**Decision.** A third match: same supplier, **same amount**, and a **service month** in common. The month is
+parsed from line items such as "August 2026" or "Aug. 2026". A legitimate monthly invoice names a new month each
+time, so it is not flagged. A different amount for the same month (extra work) is not flagged either.
+**Trade-off.** A genuine corrected re-issue for the same month is flagged. DUPLICATE weighs 35, which is MEDIUM,
+so that costs a verification call. That is the right price for a copy that would otherwise be paid twice.
+
+---
+
 ## Lessons caught during the build
 
 - **Phase 0: a field named `date` shadowed the `date` type.** In both the Pydantic and SQLAlchemy
@@ -692,3 +777,16 @@ an action arrives. The UI can explain a refusal; it can never permit an action t
 - **Phase 4: `hash()` is not stable across processes.** The fake test embedder uses `md5`. Python salts
   `hash()` per process, so a hash-based fake would give different vectors on every run.
 - **Phase 4: embedding quotas count texts, not requests.** See ADR-052.
+- **Phase 6: a judge must see what the writer saw.** The first judged run failed 33 of 46 reports. Almost every
+  "unsupported claim" was the invoice number or amount: the report writer is given the invoice, the AI review and
+  the deep-dive summaries, but the judge was given only the evidence. A 0.267 faithfulness score was measuring
+  the judge's blindness, not the reports. The harness now records everything the writer received, and the judge
+  gets exactly that. Lesson: check a surprising metric's *inputs* before believing it, and read the failures.
+- **Phase 6: free tiers differ per model, not just per provider.** Gemini 3.5 Flash-Lite allows 500 requests per
+  day, but Gemini 3.5 Flash only **20**. The large-model comparison failed after 3 cases. Each case is now saved
+  as it finishes, and a run can be finished from saved results (`--from-run`) without spending quota again.
+- **Phase 6: an evaluation's side files outlive a stopped run.** A stopped run left a labelling file listing 12
+  clean-only cases; the next run's sheet didn't match it, because the file was only written if absent. It is now
+  regenerated whenever no one has entered a label yet.
+- **Phase 6: the rules-only baseline found real policy gaps.** Single strong signals approved at LOW, and a
+  reworded re-bill of August (INV-2004) scored 0. Both became Bennet's decisions (ADR-065, ADR-066).

@@ -129,6 +129,20 @@ def _line_item_signature(invoice: Invoice) -> str:
     return "|".join(sorted(re.sub(r"\s+", " ", li.description.lower()).strip() for li in invoice.line_items))
 
 
+_MONTHS = ("january", "february", "march", "april", "may", "june", "july", "august", "september", "october",
+           "november", "december")  # fmt: skip
+_SERVICE_MONTH = re.compile(r"\b(" + "|".join(m[:3] for m in _MONTHS) + r")[a-z]*\.?\s+(20\d\d)\b", re.IGNORECASE)
+
+
+def _service_months(invoice: Invoice) -> set[tuple[int, int]]:
+    """The (year, month) periods the line items say they bill for, e.g. "cleaning - August 2026"."""
+    found = set()
+    for li in invoice.line_items:
+        for abbr, year in _SERVICE_MONTH.findall(li.description):
+            found.add((int(year), [m[:3] for m in _MONTHS].index(abbr.lower()) + 1))
+    return found
+
+
 # --- checks --------------------------------------------------------------------------
 
 
@@ -284,32 +298,35 @@ def check_urgency(ctx: CheckContext, policy: RulePolicy) -> list[RiskIndicator]:
 
 
 def check_duplicate(ctx: CheckContext, policy: RulePolicy) -> list[RiskIndicator]:
-    """Same supplier, and identical line items or the same amount on the same date.
+    """Same supplier, and identical line items, the same amount on the same date, or the
+    same amount for the same service month.
 
-    Recurring monthly invoices name the month in their line items and have
-    different dates, so they are not flagged.
+    Recurring monthly invoices name a different month each time, so they are not
+    flagged. A re-billed month with reworded items and a new date is (ADR-066).
     """
     inv = ctx.invoice
     if inv.supplier_id is None:
         return []
     signature = _line_item_signature(inv)
+    months = _service_months(inv)
     for other in ctx.other_invoices:
         if other.id == inv.id or other.supplier_id != inv.supplier_id or other.status == InvoiceStatus.REJECTED:
             continue
         same_items = signature != "" and _line_item_signature(other) == signature
         same_amount_and_date = other.amount == inv.amount and inv.date is not None and other.date == inv.date
-        if same_items or same_amount_and_date:
-            return [
-                _rule(
-                    "DUPLICATE_INVOICE",
-                    Severity.HIGH,
-                    f"Possible duplicate of invoice {other.invoice_number} ({rands(other.amount)}, {other.date}) "
-                    "from the same supplier with the same billed items."
-                    if same_items
-                    else f"Possible duplicate of invoice {other.invoice_number}: same supplier, same amount "
-                    f"({rands(other.amount)}) on the same date ({other.date}).",
-                )
-            ]
+        same_period = sorted(months & _service_months(other)) if other.amount == inv.amount else []
+        if same_items:
+            reason = f"({rands(other.amount)}, {other.date}) from the same supplier with the same billed items."
+        elif same_amount_and_date:
+            reason = f"same supplier, same amount ({rands(other.amount)}) on the same date ({other.date})."
+        elif same_period:
+            year, month = same_period[0]
+            reason = (f"same supplier, same amount ({rands(other.amount)}) billed for the same service month "
+                      f"({_MONTHS[month - 1].title()} {year}).")  # fmt: skip
+        else:
+            continue
+        description = f"Possible duplicate of invoice {other.invoice_number}: {reason}"
+        return [_rule("DUPLICATE_INVOICE", Severity.HIGH, description)]
     return []
 
 
