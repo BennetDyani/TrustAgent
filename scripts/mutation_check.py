@@ -97,6 +97,42 @@ M = [
         "if False:",
         "AI quote must be in the invoice",
     ),
+    (
+        "src/trustagent/rules/checks.py",
+        "if len(accounts) < 2:",
+        "if True:",
+        "document with two accounts is flagged",
+    ),
+    (
+        "src/trustagent/rules/checks.py",
+        "and same_bank(k.bank_name, inv.bank_name)",
+        "and True",
+        "shared account needs the same bank",
+    ),
+    (
+        "src/trustagent/extraction/pipeline.py",
+        "if not number_in_document(extracted.bank_account_number, source.text):",
+        "if False:",
+        "extracted account must be in the document",
+    ),
+    (
+        "src/trustagent/workflow/approvals.py",
+        "if risk_level in (RiskLevel.HIGH, RiskLevel.CRITICAL) and approver.role not in HIGH_RISK_APPROVER_ROLES:",
+        "if False:",
+        "analyst cannot approve HIGH/CRITICAL",
+    ),
+    (
+        "src/trustagent/workflow/actions.py",
+        "if sod := separation_of_duties_error(case.verification, actor):",
+        "if sod := None:",
+        "verifier cannot approve",
+    ),
+    (
+        "src/trustagent/workflow/guards.py",
+        "and verified_during == run_number:",
+        "and False:",
+        "re-run required after verification",
+    ),
 ]
 missed = 0
 for path, old, new, name in M:
@@ -106,7 +142,7 @@ for path, old, new, name in M:
     p.write_text(src.replace(old, new, 1), encoding="utf-8")
     try:
         r = subprocess.run(
-            ["uv", "run", "pytest", "-q", "-x", "tests/rules", "tests/workflow", "tests/graph"],
+            ["uv", "run", "pytest", "-q", "-x", "tests/rules", "tests/workflow", "tests/graph", "tests/extraction"],
             capture_output=True,
             text=True,
         )

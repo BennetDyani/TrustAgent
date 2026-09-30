@@ -5,13 +5,13 @@ than the risk level requires. The model may report observations; code keeps
 only the qualitative types rules can't see.
 """
 
-import re
 from collections.abc import Iterable
 from decimal import Decimal
 from typing import Any
 
 from trustagent.config import get_settings
 from trustagent.domain import Action, Caution, IndicatorSource, RiskIndicator, RiskLevel, Severity
+from trustagent.text import normalise_text
 
 # Indicator types the AI may contribute. Everything else is decided by rules
 # (or, for CONTRACT_DEVIATION, by code comparing against retrieved contract
@@ -120,6 +120,12 @@ def required_next_steps(findings: Iterable[str], supplier_verified: bool, amount
             "Confirm with the supplier, through its known contacts, that the account holder and contact email on "
             "the invoice are genuinely theirs."
         )
+    if "MULTIPLE_BANK_ACCOUNTS" in findings:
+        steps.append("Confirm with the supplier, through known contacts, which single bank account is correct.")
+    if "SHARED_BANK_ACCOUNT" in findings:
+        steps.append(
+            "Find out why this bank account is also linked to another supplier (named in the evidence) before paying."
+        )
     if "DUPLICATE_INVOICE" in findings:
         steps.append("Check that the earlier invoice named in the evidence has not already been paid.")
     if findings & {"UNUSUAL_AMOUNT", "PATTERN_ANOMALY", "THRESHOLD_AVOIDANCE"}:
@@ -129,13 +135,7 @@ def required_next_steps(findings: Iterable[str], supplier_verified: bool, amount
     return steps or ["No further checks are required; the payment can go through normal approval."]
 
 
-_TYPOGRAPHY = str.maketrans({"…": "...", "’": "'", "‘": "'", "“": '"', "”": '"',
-                              "–": "-", "—": "-", "*": None})  # fmt: skip
 MIN_QUOTE_CHARS = 8
-
-
-def _normalise_text(text: str) -> str:
-    return re.sub(r"\s+", " ", text.translate(_TYPOGRAPHY)).strip().casefold()
 
 
 def quote_supported(quote: str | None, document: str) -> bool:
@@ -146,8 +146,8 @@ def quote_supported(quote: str | None, document: str) -> bool:
     """
     if not quote or not quote.strip():
         return False
-    doc = _normalise_text(document)
-    parts = [p.strip(" .") for p in _normalise_text(quote).split("...")]
+    doc = normalise_text(document)
+    parts = [p.strip(" .") for p in normalise_text(quote).split("...")]
     parts = [p for p in parts if p]
     if sum(len(p) for p in parts) < MIN_QUOTE_CHARS:
         return False

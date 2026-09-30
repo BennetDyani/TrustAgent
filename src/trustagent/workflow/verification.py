@@ -149,7 +149,9 @@ def apply_supplier_verification(
             "requested_by": current.get("requested_by"),
             "requested_at": current.get("requested_at"),
             "verified_by": who,
+            "verified_by_name": verifier.name,  # separation of duties (ADR-049)
             "verified_at": dt.datetime.now(dt.UTC).isoformat(),
+            "verified_during_run": case.run_number,  # approval needs a re-run after this (ADR-049)
         }
         repo.append_audit(session, case.id, who, "Supplier verified", validated.summary)
         verified.append(case.id)

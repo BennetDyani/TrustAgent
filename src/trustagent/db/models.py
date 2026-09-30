@@ -105,6 +105,7 @@ class InvoiceRow(Base):
     source_filename: Mapped[str | None] = mapped_column(String(300))
     # Untrusted document text, kept so the case can be re-run and audited.
     raw_text: Mapped[str | None] = mapped_column(Text)
+    document_accounts: Mapped[list[str]] = mapped_column(JSONB, default=list, server_default="[]")
     extraction_warnings: Mapped[list[str]] = mapped_column(JSONB, default=list)
     submitted_by: Mapped[str | None] = mapped_column(String(200))
     # Upload order. Duplicate checks compare only with EARLIER uploads, so the first

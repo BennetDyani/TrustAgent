@@ -57,11 +57,23 @@ class RulePolicy:
 
 
 @dataclass(frozen=True)
+class KnownAccount:
+    """A bank account already on file for some supplier (its record, or one of its invoices)."""
+
+    supplier_id: str
+    supplier_name: str
+    bank_account: str  # masked
+    bank_name: str | None
+    source: str  # "supplier record" or "invoice <number>"
+
+
+@dataclass(frozen=True)
 class CheckContext:
     invoice: Invoice
     supplier: Supplier | None
     history: list[Transaction] = field(default_factory=list)
     other_invoices: list[Invoice] = field(default_factory=list)
+    known_accounts: list[KnownAccount] = field(default_factory=list)
 
 
 # --- helpers -------------------------------------------------------------------------
@@ -86,6 +98,22 @@ def email_domain(email: str | None) -> str | None:
 def rands(amount: Decimal) -> str:
     text = f"{amount:,.2f}"
     return f"R{text.removesuffix('.00')}"
+
+
+_BANK_NOISE = re.compile(r"\b(bank|limited|ltd|of|south|africa|sa)\b")
+_BANK_ALIASES = {"fnb": "first national", "tymebank": "tyme", "standard bank": "standard"}
+
+
+def same_bank(a: str | None, b: str | None) -> bool:
+    """Bank names equal after removing noise words and applying common aliases (FNB = First National Bank)."""
+
+    def norm(name: str | None) -> str:
+        n = re.sub(r"[^a-z ]", " ", (name or "").lower())
+        n = _BANK_ALIASES.get(n.strip(), n)
+        n = re.sub(r"\s+", " ", _BANK_NOISE.sub(" ", n)).strip()
+        return _BANK_ALIASES.get(n, n)
+
+    return bool(norm(a)) and norm(a) == norm(b)
 
 
 def _rule(type_: str, severity: Severity, description: str) -> RiskIndicator:
@@ -285,6 +313,45 @@ def check_duplicate(ctx: CheckContext, policy: RulePolicy) -> list[RiskIndicator
     return []
 
 
+def check_multiple_accounts(ctx: CheckContext, policy: RulePolicy) -> list[RiskIndicator]:
+    """The document lists more than one bank account (ADR-047)."""
+    accounts = ctx.invoice.document_accounts
+    if len(accounts) < 2:
+        return []
+    return [
+        _rule(
+            "MULTIPLE_BANK_ACCOUNTS",
+            Severity.HIGH,
+            f"The document lists {len(accounts)} different bank accounts ({', '.join(accounts)}). Only one can be "
+            "right: confirm with the supplier, through known contacts, which account to pay.",
+        )
+    ]
+
+
+def check_shared_account(ctx: CheckContext, policy: RulePolicy) -> list[RiskIndicator]:
+    """This bank account is already linked to a DIFFERENT supplier: a money-mule or fake-supplier signal (ADR-048).
+
+    Only the last 4 digits are stored, so a match needs the same last 4 digits AND the same bank.
+    """
+    inv = ctx.invoice
+    matches = [
+        k for k in ctx.known_accounts
+        if k.supplier_id != inv.supplier_id and last4(k.bank_account) == last4(inv.bank_account)
+        and same_bank(k.bank_name, inv.bank_name)
+    ]  # fmt: skip
+    if not matches:
+        return []
+    where = "; ".join(f"{k.supplier_name} ({k.supplier_id}, {k.source})" for k in matches[:3])
+    return [
+        _rule(
+            "SHARED_BANK_ACCOUNT",
+            Severity.HIGH,
+            f"Bank account {mask_account(inv.bank_account)} ({inv.bank_name}) is already linked to another supplier: "
+            f"{where}. The same last 4 digits at the same bank; confirm before paying.",
+        )
+    ]
+
+
 RULE_CHECKS = (
     check_supplier_and_bank,
     check_account_holder,
@@ -292,6 +359,8 @@ RULE_CHECKS = (
     check_amount,
     check_urgency,
     check_duplicate,
+    check_multiple_accounts,
+    check_shared_account,
 )
 
 

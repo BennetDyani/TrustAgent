@@ -46,3 +46,26 @@ def txn(amount: str, supplier_id: str = "SUP-X", status: str = "COMPLETED", n: i
         date=dt.date(2026, 1, 1) + dt.timedelta(days=30 * n),
         status=status,
     )
+
+
+def invoice_document(ex, extra: str = "") -> str:
+    """Render an ExtractedInvoice as a small Markdown invoice that really contains its values.
+
+    Extraction is grounded in the document (ADR-047), so fake extractions need a document that
+    matches them, just as a real one would.
+    """
+    lines = [
+        f"# INVOICE {ex.invoice_number or ''}",
+        f"From: {ex.supplier_name or ''}",
+        f"Email: {ex.supplier_email or ''}",
+        f"Date: {ex.invoice_date or ''}   Due: {ex.due_date or ''}   Priority: {ex.priority or ''}",
+        f"| Bank | {ex.bank_name or ''} |",
+        f"| Account Holder | {ex.bank_account_holder or ''} |",
+        f"| Account Number | {ex.bank_account_number or ''} |",
+        *(f"| {li.description} | {li.quantity} | {li.unit_price} | {li.total} |" for li in ex.line_items),
+        f"Subtotal: {ex.subtotal or ''}   VAT: {ex.vat_amount or ''}",
+        f"Total Due: {ex.total_due or ''}",
+        ex.notes or "",
+        extra,
+    ]
+    return "\n".join(lines)

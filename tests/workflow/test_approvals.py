@@ -85,3 +85,34 @@ def test_recorded_approval_carries_timestamp_and_does_not_mutate_input():
 def test_outstanding_roles():
     assert outstanding_roles(BIG, []) == [Role.FINANCE_MANAGER, Role.DEPARTMENT_HEAD]
     assert outstanding_roles(SMALL, []) == []  # any single role will do; see is_complete
+
+
+# --- risk-based authority and separation of duties (weak spot 1, ADR-049) ---------------------
+
+from trustagent.domain import RiskLevel  # noqa: E402
+from trustagent.workflow.approvals import separation_of_duties_error  # noqa: E402
+
+
+@pytest.mark.parametrize("level", [RiskLevel.HIGH, RiskLevel.CRITICAL])
+def test_analyst_cannot_approve_high_risk_even_when_small(level):
+    result = record_approval(SMALL, [], ANALYST, NOW, risk_level=level)
+    assert isinstance(result, ApprovalError) and "Finance Manager or a Department Head" in result.error
+
+
+@pytest.mark.parametrize("approver", [MANAGER, HEAD])
+def test_manager_or_head_can_approve_high_risk_small_payment(approver):
+    result = record_approval(SMALL, [], approver, NOW, risk_level=RiskLevel.CRITICAL)
+    assert isinstance(result, ApprovalRecorded) and result.complete
+
+
+@pytest.mark.parametrize("level", [RiskLevel.LOW, RiskLevel.MEDIUM, None])
+def test_analyst_can_still_approve_low_and_medium(level):
+    assert isinstance(record_approval(SMALL, [], ANALYST, NOW, risk_level=level), ApprovalRecorded)
+
+
+def test_whoever_verified_the_supplier_cannot_approve():
+    verification = {"status": "VERIFIED", "verified_by_name": "Sipho Dlamini"}
+    assert "separation of duties" in separation_of_duties_error(verification, MANAGER)
+    assert separation_of_duties_error(verification, HEAD) is None
+    assert separation_of_duties_error(None, MANAGER) is None
+    assert separation_of_duties_error({"status": "PENDING"}, MANAGER) is None

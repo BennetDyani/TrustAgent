@@ -24,6 +24,7 @@ def check_action_allowed(
     action: Action,
     verification: dict[str, Any] | None,
     bank_details_changed: bool = False,
+    run_number: int | None = None,
 ) -> None:
     if status != InvestigationStatus.ACTION_REQUIRED:
         raise GuardError(f"Actions can only be taken on ACTION_REQUIRED cases; this one is {status}.")
@@ -38,6 +39,13 @@ def check_action_allowed(
         )
     if verification_status == "PENDING":
         raise GuardError("Supplier verification is still pending. Verify the supplier before approving payment.")
+    verified_during = (verification or {}).get("verified_during_run")
+    if verification_status == "VERIFIED" and run_number is not None and verified_during == run_number:
+        # ADR-049: the score must reflect the verified facts before anyone approves.
+        raise GuardError(
+            "The supplier was verified after this assessment. Re-run the investigation so the risk reflects the "
+            "verified details, then approve."
+        )
 
 
 def check_can_rerun(status: InvestigationStatus) -> None:

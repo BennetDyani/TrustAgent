@@ -145,7 +145,15 @@ def test_hold_then_verify_by_phone_and_email_then_approve(service, upload, clean
     assert outcome.cases_verified == [case_id]
     assert case_row(clean_db, case_id).verification["status"] == "VERIFIED"
 
-    paid = service.act(case_id, HumanAction.APPROVE_PAYMENT, SIPHO)
+    # ADR-049: the score must reflect the verified facts first...
+    too_soon = service.act(case_id, HumanAction.APPROVE_PAYMENT, LERATO)
+    assert not too_soon.ok and "Re-run" in too_soon.message
+    list(service.rerun(case_id, THANDI))
+    # ...and whoever verified the supplier can't approve the payment.
+    own = service.act(case_id, HumanAction.APPROVE_PAYMENT, SIPHO)
+    assert not own.ok and "separation of duties" in own.message
+
+    paid = service.act(case_id, HumanAction.APPROVE_PAYMENT, LERATO)
     assert paid.ok and paid.closed
 
 
@@ -368,3 +376,15 @@ def test_clean_invoice_report_gets_no_verification_steps(service, upload, fake_l
     assert fake_llm.report_inputs[0].next_steps == [
         "No further checks are required; the payment can go through normal approval."
     ]
+
+
+def test_analyst_cannot_approve_a_high_risk_case(service, upload, clean_db):
+    # Unknown supplier with a personal Gmail account, account holder mismatch, just under R100k -> HIGH or above.
+    case_id = upload(supplier_name="Nexus Advisory Partners", supplier_email="k.mokoena.nexus@gmail.com",
+                     bank_account_holder="K Mokoena", total_due="R 98,500.00", subtotal=None,
+                     vat_amount=None)  # fmt: skip
+    run(service, case_id)
+    assert case_row(clean_db, case_id).risk_level in ("HIGH", "CRITICAL")
+    refused = service.act(case_id, HumanAction.APPROVE_PAYMENT, THANDI)
+    assert not refused.ok and refused.status_code == 403 and "Finance Manager or a Department Head" in refused.message
+    assert service.act(case_id, HumanAction.HOLD_PAYMENT, THANDI).ok  # analysts can still hold

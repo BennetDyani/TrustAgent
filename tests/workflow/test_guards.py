@@ -62,3 +62,18 @@ def test_bank_change_blocks_approval_until_verified():
 @pytest.mark.parametrize("action", [Action.HOLD_PAYMENT, Action.ESCALATE, Action.REQUEST_VERIFICATION])
 def test_bank_change_still_allows_the_cautious_actions(action):
     check_action_allowed(S.ACTION_REQUIRED, action, verification=None, bank_details_changed=True)
+
+
+# --- re-run required after verification (weak spot 1, ADR-049) --------------------------------
+
+
+def test_approval_after_verification_needs_a_rerun_first():
+    verified = {"status": "VERIFIED", "verified_during_run": 1}
+    with pytest.raises(GuardError, match="Re-run"):
+        check_action_allowed(S.ACTION_REQUIRED, Action.APPROVE_PAYMENT, verified, run_number=1)
+    check_action_allowed(S.ACTION_REQUIRED, Action.APPROVE_PAYMENT, verified, run_number=2)
+
+
+def test_rerun_rule_does_not_block_cautious_actions():
+    verified = {"status": "VERIFIED", "verified_during_run": 1}
+    check_action_allowed(S.ACTION_REQUIRED, Action.HOLD_PAYMENT, verified, run_number=1)

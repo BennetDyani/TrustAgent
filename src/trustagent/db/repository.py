@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from trustagent.db.models import AuditLogRow, InvoiceRow, SupplierRow, TransactionRow
 from trustagent.domain import Invoice, LineItem, Supplier, Transaction
-from trustagent.rules.checks import CheckContext
+from trustagent.rules.checks import CheckContext, KnownAccount
 
 
 def to_supplier(row: SupplierRow) -> Supplier:
@@ -39,6 +39,7 @@ def to_invoice(row: InvoiceRow) -> Invoice:
         line_items=[LineItem.model_validate(li) for li in row.line_items or []],
         status=row.status,
         urgency=row.urgency,
+        document_accounts=row.document_accounts or [],
     )
 
 
@@ -89,7 +90,25 @@ def load_check_context(session: Session, invoice_id: str) -> CheckContext:
                 )
             )
         ]
-    return CheckContext(invoice=invoice, supplier=supplier, history=history, other_invoices=others)
+    return CheckContext(
+        invoice=invoice, supplier=supplier, history=history, other_invoices=others,
+        known_accounts=_known_accounts(session, row.supplier_id),
+    )  # fmt: skip
+
+
+def _known_accounts(session: Session, supplier_id: str | None) -> list[KnownAccount]:
+    """Bank accounts on file for OTHER suppliers: their records and their invoices."""
+    known = [
+        KnownAccount(s.id, s.name, s.bank_account, s.bank_name, "supplier record")
+        for s in session.scalars(select(SupplierRow).where(SupplierRow.id != supplier_id))
+    ]
+    known += [
+        KnownAccount(i.supplier_id, i.supplier_name, i.bank_account, i.bank_name, f"invoice {i.invoice_number}")
+        for i in session.scalars(
+            select(InvoiceRow).where(InvoiceRow.supplier_id.is_not(None), InvoiceRow.supplier_id != supplier_id)
+        )
+    ]
+    return known
 
 
 def append_audit(

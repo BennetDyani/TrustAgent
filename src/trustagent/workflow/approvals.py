@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 from trustagent.config import get_settings
-from trustagent.domain import Approval, Approver, Role
+from trustagent.domain import Approval, Approver, RiskLevel, Role
 
 DUAL_AUTHORIZATION_ROLES: tuple[Role, ...] = (Role.FINANCE_MANAGER, Role.DEPARTMENT_HEAD)
 
@@ -65,13 +65,28 @@ def _same_person(a: str, b: str) -> bool:
     return a.strip().casefold() == b.strip().casefold()
 
 
+HIGH_RISK_APPROVER_ROLES: tuple[Role, ...] = (Role.FINANCE_MANAGER, Role.DEPARTMENT_HEAD)
+
+
 def record_approval(
-    amount: Decimal, existing: list[Approval], approver: Approver, now: dt.datetime
+    amount: Decimal,
+    existing: list[Approval],
+    approver: Approver,
+    now: dt.datetime,
+    risk_level: RiskLevel | None = None,
 ) -> ApprovalRecorded | ApprovalError:
-    """Validate one approval against POL-002 and return the new approval list (input is not mutated)."""
+    """Validate one approval against POL-002 and the risk level; return the new list (input not mutated)."""
     if any(_same_person(a.name, approver.name) for a in existing):
         return ApprovalError(
             f"{approver.name} has already approved this payment. A second approval must come from a different person."
+        )
+
+    # Approval authority scales with risk (ADR-049): an analyst can hold, escalate or reject a
+    # HIGH/CRITICAL case, but approving one needs a Finance Manager or Department Head.
+    if risk_level in (RiskLevel.HIGH, RiskLevel.CRITICAL) and approver.role not in HIGH_RISK_APPROVER_ROLES:
+        return ApprovalError(
+            f"This case is {risk_level.value} risk, so approval needs a Finance Manager or a Department Head "
+            f"(ADR-049). A {ROLE_LABELS[approver.role]} can hold, escalate or reject it."
         )
 
     if requires_dual_authorization(amount):
@@ -93,3 +108,14 @@ def record_approval(
         complete=is_complete(amount, approvals),
         outstanding=outstanding_roles(amount, approvals),
     )
+
+
+def separation_of_duties_error(verification: dict | None, approver: Approver) -> str | None:
+    """The person who verified the supplier's bank details can't approve the payment (ADR-049)."""
+    v = verification or {}
+    if v.get("status") == "VERIFIED" and _same_person(v.get("verified_by_name") or "", approver.name):
+        return (
+            f"{approver.name} verified this supplier's bank details, so someone else must approve the payment "
+            "(separation of duties)."
+        )
+    return None

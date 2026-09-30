@@ -364,3 +364,55 @@ def test_sample_inv_1048_abc_bank_change_and_urgency():
 
 def test_sample_inv_1049_metro_is_clean():
     assert flagged(run(_metro("INV-1049", 8, 1), supplier="SUP-002")) == set()
+
+
+# --- documents listing two accounts; accounts shared with another supplier (ADR-047/048) -------
+
+from trustagent.rules.checks import KnownAccount, same_bank  # noqa: E402
+
+
+def test_document_listing_two_accounts_is_flagged():
+    inds = run(invoice(document_accounts=["****4821", "****9917"]))
+    finding = next(i for i in inds if i.type == "MULTIPLE_BANK_ACCOUNTS")
+    assert "****4821" in finding.description and "****9917" in finding.description
+
+
+def test_one_account_in_the_document_is_fine():
+    assert "MULTIPLE_BANK_ACCOUNTS" not in flagged(run(invoice(document_accounts=["****4821"])))
+
+
+def _ctx_with(known, inv=None):
+    sup = seed_supplier("SUP-001")
+    return run_rule_checks(CheckContext(invoice=inv or invoice(), supplier=sup, history=seed_history("SUP-001"),
+                                        known_accounts=known))  # fmt: skip
+
+
+def test_bank_account_already_used_by_another_supplier_is_flagged():
+    known = [KnownAccount("SUP-009", "Other Traders", "****4821", "FNB", "invoice OT-77")]
+    finding = next(i for i in _ctx_with(known) if i.type == "SHARED_BANK_ACCOUNT")
+    assert "Other Traders" in finding.description and "OT-77" in finding.description
+
+
+def test_same_last4_at_a_different_bank_is_not_shared():
+    known = [KnownAccount("SUP-009", "Other Traders", "****4821", "Capitec Bank", "supplier record")]
+    assert "SHARED_BANK_ACCOUNT" not in flagged(_ctx_with(known))
+
+
+def test_own_account_is_not_shared():
+    known = [KnownAccount("SUP-001", "ABC Office Solutions", "****4821", "First National Bank", "supplier record")]
+    assert "SHARED_BANK_ACCOUNT" not in flagged(_ctx_with(known))
+
+
+def test_missing_bank_name_is_not_enough_to_match():
+    known = [KnownAccount("SUP-009", "Other Traders", "****4821", None, "supplier record")]
+    assert "SHARED_BANK_ACCOUNT" not in flagged(_ctx_with(known))
+
+
+@pytest.mark.parametrize(
+    "a, b, same",
+    [("FNB", "First National Bank", True), ("Absa Bank", "ABSA", True), ("TymeBank", "Tyme Bank", True),
+     ("Standard Bank of South Africa", "Standard Bank", True), ("Capitec Bank", "Nedbank", False),
+     (None, "FNB", False)],
+)  # fmt: skip
+def test_bank_name_normalisation(a, b, same):
+    assert same_bank(a, b) is same

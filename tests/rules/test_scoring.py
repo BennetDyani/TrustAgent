@@ -14,6 +14,8 @@ def test_weights_match_the_reference_table():
         "DUPLICATE_INVOICE": 35,
         "ACCOUNT_HOLDER_MISMATCH": 25,
         "EMAIL_DOMAIN_MISMATCH": 25,
+        "MULTIPLE_BANK_ACCOUNTS": 25,
+        "SHARED_BANK_ACCOUNT": 25,
         "UNUSUAL_AMOUNT": 20,
         "PERSONAL_EMAIL_DOMAIN": 15,
         "SUPPLIER_NOT_VERIFIED": 15,

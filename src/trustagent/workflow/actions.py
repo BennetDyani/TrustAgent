@@ -15,8 +15,8 @@ from sqlalchemy.orm import Session
 
 from trustagent.db import repository as repo
 from trustagent.db.models import EvidenceRow, InvestigationRow, InvoiceRow, TransactionRow
-from trustagent.domain import Approval, Approver, HumanAction, InvestigationStatus
-from trustagent.workflow.approvals import ROLE_LABELS, ApprovalError, record_approval
+from trustagent.domain import Approval, Approver, HumanAction, InvestigationStatus, RiskLevel
+from trustagent.workflow.approvals import ROLE_LABELS, ApprovalError, record_approval, separation_of_duties_error
 from trustagent.workflow.guards import GuardError, check_action_allowed
 
 
@@ -80,7 +80,7 @@ def apply_human_action(
     suffix = f" Note: {note.strip()}" if note and note.strip() else ""
 
     try:
-        check_action_allowed(InvestigationStatus(case.status), action, case.verification, bank_changed)
+        check_action_allowed(InvestigationStatus(case.status), action, case.verification, bank_changed, case.run_number)
     except GuardError as exc:
         repo.append_audit(session, case.id, _actor(actor), f"Action refused: {action}", str(exc), status="FAILED")
         return ActionResult(False, str(exc), status_code=409)
@@ -123,8 +123,12 @@ def apply_human_action(
             result = ActionResult(True, "Invoice rejected and case closed.", closed=True)
 
         case HumanAction.APPROVE_PAYMENT:
+            if sod := separation_of_duties_error(case.verification, actor):
+                repo.append_audit(session, case.id, _actor(actor), "Approval refused", sod, status="FAILED")
+                return ActionResult(False, sod, status_code=403)
             existing = [Approval.model_validate(a) for a in case.approvals or []]
-            outcome = record_approval(invoice.amount, existing, actor, now)
+            level = RiskLevel(case.risk_level) if case.risk_level else None
+            outcome = record_approval(invoice.amount, existing, actor, now, risk_level=level)
             if isinstance(outcome, ApprovalError):
                 repo.append_audit(session, case.id, _actor(actor), "Approval refused", outcome.error, status="FAILED")
                 return ActionResult(False, outcome.error, status_code=403)

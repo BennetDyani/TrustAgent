@@ -11,6 +11,7 @@ from decimal import Decimal, InvalidOperation
 from trustagent.domain import Invoice, LineItem, Urgency
 from trustagent.extraction.schema import ExtractedInvoice
 from trustagent.rules.checks import mask_account
+from trustagent.text import digits_pattern
 
 # Day-first formats: South African invoices write 01/08/2026 for 1 August.
 _DATE_FORMATS = ("%Y-%m-%d", "%d %B %Y", "%d %b %Y", "%d/%m/%Y", "%Y/%m/%d", "%d-%m-%Y", "%B %d, %Y", "%b %d, %Y")
@@ -161,7 +162,5 @@ def redact_account_numbers(text: str, account_number: str | None) -> str:
     (``1092847591**9917**``).
     """
     digits = re.sub(r"\D", "", account_number or "")
-    if len(digits) < 5:
-        return text
-    pattern = r"[\s*\-]*".join(re.escape(d) for d in digits)
-    return re.sub(pattern, mask_account(digits), text)
+    pattern = digits_pattern(digits) if len(digits) >= 5 else None
+    return re.sub(pattern, mask_account(digits), text) if pattern else text
