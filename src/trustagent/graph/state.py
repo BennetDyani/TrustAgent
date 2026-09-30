@@ -30,8 +30,10 @@ class InvestigationState(TypedDict, total=False):
     deep_dive_findings: list[dict[str, Any]]
     ignored_ai_types: Annotated[list[str], operator.add]
 
-    # Retrieved context (policies now; contracts via RAG in phase 4)
+    # Retrieved context: contract clauses and policy-manual sections, each with a citation
     context: list[dict[str, Any]]
+    contract_on_file: bool | None
+    ai_contract_terms: list[dict[str, Any]]
 
     ai_review_available: bool
     ai_summary: str

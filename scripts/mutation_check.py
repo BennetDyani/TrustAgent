@@ -133,6 +133,30 @@ M = [
         "and False:",
         "re-run required after verification",
     ),
+    (
+        "src/trustagent/rules/contract.py",
+        "if billed > agreed * (1 + tolerance):",
+        "if billed > agreed * (1 + tolerance) * 2:",
+        "contract tolerance is 2%, not more",
+    ),
+    (
+        "src/trustagent/rules/contract.py",
+        'if not quote_supported(quote, chunk["content"]):',
+        "if False:",
+        "contract quote must be in the clause",
+    ),
+    (
+        "src/trustagent/rules/contract.py",
+        'if _field(term, "price_basis") != "per_unit":',
+        "if False:",
+        "only per-unit prices are compared",
+    ),
+    (
+        "src/trustagent/rag/retrieve.py",
+        "or_(DocumentChunkRow.effective_to.is_(None), DocumentChunkRow.effective_to >= as_of),",
+        "",
+        "expired contracts are filtered out",
+    ),
 ]
 missed = 0
 for path, old, new, name in M:
@@ -142,7 +166,18 @@ for path, old, new, name in M:
     p.write_text(src.replace(old, new, 1), encoding="utf-8")
     try:
         r = subprocess.run(
-            ["uv", "run", "pytest", "-q", "-x", "tests/rules", "tests/workflow", "tests/graph", "tests/extraction"],
+            [
+                "uv",
+                "run",
+                "pytest",
+                "-q",
+                "-x",
+                "tests/rules",
+                "tests/workflow",
+                "tests/graph",
+                "tests/extraction",
+                "tests/rag",
+            ],
             capture_output=True,
             text=True,
         )

@@ -126,6 +126,11 @@ def required_next_steps(findings: Iterable[str], supplier_verified: bool, amount
         steps.append(
             "Find out why this bank account is also linked to another supplier (named in the evidence) before paying."
         )
+    if "CONTRACT_DEVIATION" in findings:
+        steps.append(
+            "Query the price with the supplier; the contract owner must approve any price above the contract rate "
+            "in writing before payment (policy manual 10.2)."
+        )
     if "DUPLICATE_INVOICE" in findings:
         steps.append("Check that the earlier invoice named in the evidence has not already been paid.")
     if findings & {"UNUSUAL_AMOUNT", "PATTERN_ANOMALY", "THRESHOLD_AVOIDANCE"}:

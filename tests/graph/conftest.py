@@ -37,6 +37,7 @@ class FakeLLM:
     review_down: bool = False
     report_down: bool = False
     dive_observations: list[dict] = field(default_factory=list)
+    contract_terms: list = field(default_factory=list)
     review_inputs: list[ReviewInput] = field(default_factory=list)
     report_inputs: list[ReportInput] = field(default_factory=list)
     dive_inputs: list[DeepDiveInput] = field(default_factory=list)
@@ -45,7 +46,9 @@ class FakeLLM:
         self.review_inputs.append(inp)
         if self.review_down:
             raise LLMUnavailable("simulated outage")
-        return AIReview(observations=self.observations, summary="Fake review."), USAGE
+        return AIReview(
+            observations=self.observations, contract_terms=self.contract_terms, summary="Fake review."
+        ), USAGE
 
     def reporter(self, inp: ReportInput):
         self.report_inputs.append(inp)

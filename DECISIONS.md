@@ -525,6 +525,88 @@ All three are pure functions or guards, with tests and mutation-check entries.
 
 ---
 
+## Phase 4: RAG, contract-aware invoice checking
+
+### ADR-049: Code decides contract deviations; the model only maps and quotes
+
+**Decision.** The AI review receives the supplier's contract clauses, each tagged `[chunk N]`. It returns
+`contract_terms`: for each invoice line, the matching contract item, the price *as printed*, the price basis
+(`per_unit | percentage | other`), the chunk id and an exact quote. The `contract_check` node (pure code) then:
+- drops a term if the cited chunk wasn't retrieved for this case,
+- drops it if the quote isn't in that chunk, or the price isn't in the quote,
+- compares only per-unit prices, so "10% of the order value" is never read as R10,
+- flags `CONTRACT_DEVIATION` when billed > agreed × (1 + 2%), the tolerance from policy manual 10.1,
+- records lines at the contract rate as `CONFIRMED_MATCH`, with the citation.
+
+`CONTRACT_DEVIATION` has source `CONTRACT` and weight 20. It isn't subject to the AI cap, because it is decided
+by code from grounded quotes. An AI remark that restates it scores 0 (ADR-042).
+**Live result.**
+- INV-1048: chairs +13.9%, desk converters +9.4%, delivery +700%.
+- INV-1050: annual reports +12.1%, brochures +31.6%. The rush surcharge was correctly not compared.
+- Every line of the five clean contracted invoices matched its rate.
+
+**Trade-off.** When the model is down there's no mapping, so the check is skipped and the case says so. Parsing
+PDF rate tables by rule was rejected as too brittle.
+
+### ADR-050: Ingestion is a pipeline of inspectable stages; metadata comes from a manifest
+
+`extract_pages` → `strip_boilerplate` → `chunk_document` → `embed_chunks` → `store_chunks`. Each stage is a
+function with a testable output, and notebook 03 shows them one by one.
+- **Metadata** (supplier, contract id, doc type, effective dates) comes from `data/documents_manifest.json`,
+  never guessed by a model.
+- **Boilerplate.** Lines repeated on 60% or more of pages (running headers and footers) and bare page numbers are
+  removed, so they can't pollute every chunk and every keyword match.
+- **Structure-aware chunking.** Split on section headings first, then pack whole clauses up to 800 characters,
+  with the last clause (up to 120 characters) overlapping into the next chunk. Clauses are never cut
+  mid-sentence, and a rate table stays in one chunk. Each chunk starts with a "document | section" context
+  header, which helps both vector and keyword search.
+- Two heading-detection bugs were caught by looking at the output before writing tests: table cells like
+  "5 (POL-001)", and a clause ending in ":" ("4.1 The following rates apply…:"). There are regression tests
+  for both.
+- **Idempotent.** Re-ingesting a document replaces its chunks.
+
+### ADR-051: Retrieval filters on metadata first, then hybrid search merged with RRF
+
+- **Filters.** `doc_type`, `supplier_id`, and **the contract in force on the invoice date**, applied *before*
+  search. An expired contract (MC-2024-001, R11,000/month) can't be retrieved for a 2026 invoice, which would
+  otherwise produce false deviations against old rates.
+- **Two retrievers.** pgvector cosine distance (HNSW index), and Postgres full-text search on a stored
+  `tsvector` (GIN index) with OR semantics and sanitised terms.
+- **Reciprocal Rank Fusion, k=60.** Each list contributes `1/(k + rank)`; raw scores are never added (bug #7).
+  Both ranks are kept on each result for debugging and evaluation.
+- **Citations.** Every result carries source, page and section. Rule findings also get the policy-manual
+  section that governs them, found by keyword search with no model call. For example, `BANK_DETAILS_CHANGED`
+  cites "5 Supplier Bank Account Changes (POL-001)", p.3.
+- **Refusal.** No agreement for the supplier gives "No contract on file … prices not checked", never a guess.
+- **Fallback.** If nothing is ingested, the four policies from the policy table are used, with a note.
+
+**Live spot check (6 questions × 3 modes).** Every top-1 result was correct. Hybrid fixed the one case where
+keyword-only ranked the wrong section first ("bank account changed" → onboarding). On these easy questions,
+hybrid and vector-only look alike. Phase 6 needs harder, hand-labelled questions to measure Recall@K and MRR
+properly.
+
+### ADR-052: One embedding model, normalised, and paced per text
+
+- `gemini-embedding-001` at 768 dimensions (config) for both ingestion (`RETRIEVAL_DOCUMENT`) and queries
+  (`RETRIEVAL_QUERY`).
+- **Normalised.** A probe showed raw vectors have norm around 0.59 at 768 dimensions, as Google's docs say.
+  Every vector is L2-normalised, and one of the wrong size raises an error.
+- **Found live: the free tier allows 100 embeddings per minute, and every text in a batch counts.** Ingesting 76
+  chunks right after a spot check hit a 429. The embedder now shares one limiter (90 per minute, config) across
+  the process, acquires one token per text, and sends batches of 20. Ingestion takes about 50 seconds instead of
+  failing.
+
+### ADR-053: Synthetic documents are generated by a checked-in script
+
+`scripts/generate_documents.py` builds the contracts and the 12-page policy manual with reportlab. The contracts
+are designed to produce real test cases against the sample invoices: deviations in INV-1048 and INV-1050, exact
+matches elsewhere, an expired contract with lower rates, and no contract for the four unknown suppliers. The
+manual expands POL-001..004, adds contract compliance, purchase orders, VAT, payment runs, fraud response and
+worked examples, and includes deliberate mess (headers and footers, tables, an amended clause). Anyone can
+regenerate the exact files.
+
+---
+
 ## Lessons caught during the build
 
 - **Phase 0: a field named `date` shadowed the `date` type.** In both the Pydantic and SQLAlchemy
@@ -553,3 +635,9 @@ All three are pure functions or guards, with tests and mutation-check entries.
 - **Honest limit: `TRUNCATE` bypasses the append-only trigger.** The trigger is row-level (UPDATE/DELETE). The
   tests rely on `TRUNCATE` to reset. In production the application's database role would be granted only
   `INSERT, SELECT` on `audit_log`, with no `UPDATE`, `DELETE` or `TRUNCATE`.
+- **Phase 4: look at the chunks before trusting the tests.** Printing the section list exposed two
+  heading-detection bugs (table cells, and a clause ending in ":") that would have silently broken the
+  "rate table in one chunk" property. Both now have regression tests.
+- **Phase 4: `hash()` is not stable across processes.** The fake test embedder uses `md5`. Python salts
+  `hash()` per process, so a hash-based fake would give different vectors on every run.
+- **Phase 4: embedding quotas count texts, not requests.** See ADR-052.

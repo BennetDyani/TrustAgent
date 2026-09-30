@@ -39,7 +39,7 @@ class LLMNotConfigured(LLMUnavailable):
     """No API key for the configured provider."""
 
 
-def _key(settings: Settings, provider: Provider) -> str:
+def provider_api_key(settings: Settings, provider: Provider) -> str:
     secret = {
         "gemini": settings.google_api_key,
         "groq": settings.groq_api_key,
@@ -87,19 +87,19 @@ def get_chat_model(
         # Gemini 3.x models use fixed sampling and ignore temperature (the SDK warns), so
         # we don't pretend to control it. Run-to-run variance is measured in evals (ADR-025).
         common.pop("temperature")
-        return ChatGoogleGenerativeAI(model=model, google_api_key=_key(s, provider), **common)
+        return ChatGoogleGenerativeAI(model=model, google_api_key=provider_api_key(s, provider), **common)
     if provider == "groq":
         from langchain_groq import ChatGroq
 
-        return ChatGroq(model=model, api_key=_key(s, provider), **common)
+        return ChatGroq(model=model, api_key=provider_api_key(s, provider), **common)
     if provider == "openai":
         from langchain_openai import ChatOpenAI
 
-        return ChatOpenAI(model=model, api_key=_key(s, provider), **common)
+        return ChatOpenAI(model=model, api_key=provider_api_key(s, provider), **common)
     if provider == "anthropic":
         from langchain_anthropic import ChatAnthropic
 
-        return ChatAnthropic(model=model, api_key=_key(s, provider), **common)
+        return ChatAnthropic(model=model, api_key=provider_api_key(s, provider), **common)
     raise ValueError(f"Unknown provider: {provider}")
 
 

@@ -1,6 +1,6 @@
 """Assemble the investigation graph.
 
-load_context -> rule_checks -> retrieve_context -> ai_review -> provisional_score
+load_context -> rule_checks -> retrieve_context (RAG) -> ai_review -> contract_check -> provisional_score
     -> [MEDIUM or ambiguous] deep_dive -> score        (bounded ReAct, read-only tools)
     -> [otherwise]                     -> score
 score -> report -> human_decision (interrupt) -> execute_action
@@ -20,7 +20,7 @@ def build_graph(deps: Deps, checkpointer: BaseCheckpointSaver | None = None) -> 
     n = make_nodes(deps)
     g = StateGraph(InvestigationState)
     for name in (
-        "load_context", "rule_checks", "retrieve_context", "ai_review", "provisional_score",
+        "load_context", "rule_checks", "retrieve_context", "ai_review", "contract_check", "provisional_score",
         "deep_dive", "score", "report", "human_decision", "execute_action",
     ):  # fmt: skip
         g.add_node(name, n[name])
@@ -29,7 +29,8 @@ def build_graph(deps: Deps, checkpointer: BaseCheckpointSaver | None = None) -> 
     g.add_edge("load_context", "rule_checks")
     g.add_edge("rule_checks", "retrieve_context")
     g.add_edge("retrieve_context", "ai_review")
-    g.add_edge("ai_review", "provisional_score")
+    g.add_edge("ai_review", "contract_check")
+    g.add_edge("contract_check", "provisional_score")
     # Explicit path maps, so the Mermaid diagram shows every branch.
     g.add_conditional_edges(
         "provisional_score", n["route_after_provisional"], {"deep_dive": "deep_dive", "score": "score"}

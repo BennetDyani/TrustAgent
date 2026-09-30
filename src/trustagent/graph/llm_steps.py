@@ -7,7 +7,7 @@ rule-only fallback. Tests replace these callables with fakes.
 
 import re
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from langchain_core.language_models import BaseChatModel
@@ -22,7 +22,7 @@ Severity = Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"]
 RuleType = Literal[
     "BANK_DETAILS_CHANGED", "DUPLICATE_INVOICE", "ACCOUNT_HOLDER_MISMATCH", "EMAIL_DOMAIN_MISMATCH", "UNUSUAL_AMOUNT",
     "PERSONAL_EMAIL_DOMAIN", "SUPPLIER_NOT_VERIFIED", "AMOUNT_EXCEEDS_THRESHOLD", "THRESHOLD_AVOIDANCE",
-    "PATTERN_ANOMALY", "URGENCY_INDICATOR", "MULTIPLE_BANK_ACCOUNTS", "SHARED_BANK_ACCOUNT",
+    "PATTERN_ANOMALY", "URGENCY_INDICATOR", "MULTIPLE_BANK_ACCOUNTS", "SHARED_BANK_ACCOUNT", "CONTRACT_DEVIATION",
 ]  # fmt: skip
 
 
@@ -41,8 +41,26 @@ class AIObservation(BaseModel):
     )
 
 
+class ContractTerm(BaseModel):
+    """One invoice line mapped to the contract rate that covers it. Code checks and compares (ADR-049)."""
+
+    invoice_line: str = Field(description="The invoice line item description, exactly as on the invoice.")
+    contract_item: str = Field(description="The matching item in the contract rate table, as printed.")
+    agreed_price: str = Field(
+        description="The contract price exactly as printed, e.g. 'R 3,950.00' or '10% of the order value'."
+    )
+    price_basis: Literal["per_unit", "percentage", "other"] = Field(
+        description="per_unit for a price per item/month/occasion; percentage for a % surcharge; other otherwise."
+    )
+    source_chunk_id: int = Field(description="The [chunk N] id of the contract clause you took the price from.")
+    quote: str = Field(description="The exact contract text showing the item and its price, copied from that chunk.")
+
+
 class AIReview(BaseModel):
     observations: list[AIObservation]
+    contract_terms: list[ContractTerm] = Field(
+        description="For each invoice line covered by the CONTRACT CLAUSES, the agreed rate. Empty if no contract."
+    )
     summary: str = Field(description="Two or three sentences: your overall reading of the document.")
 
 
@@ -60,6 +78,7 @@ class ReviewInput:
     history_count: int
     extraction_warnings: list[str]
     context: list[dict[str, Any]]
+    line_items: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass
@@ -87,6 +106,9 @@ def _bullets(lines: list[str]) -> str:
     return "\n".join(f"- {line}" for line in lines) if lines else "- none"
 
 
+NO_CONTRACT = "NO CONTRACT ON FILE: return an empty contract_terms list; do not guess rates."
+
+
 def review_messages(inp: ReviewInput) -> list:
     flagged = [f for f in inp.rule_findings if f["type"] != "CONFIRMED_MATCH"]
     confirmed = [f for f in inp.rule_findings if f["type"] == "CONFIRMED_MATCH"]
@@ -96,7 +118,13 @@ def review_messages(inp: ReviewInput) -> list:
         if sup
         else "No supplier record."
     )
-    policies = [f"[{c['source_id']}] {c['title']}: {c['text']}" for c in inp.context]
+    contract = [
+        f"[chunk {c['chunk_id']} | {c['source_id']} | {c['title']}]\n{c['text']}"
+        for c in inp.context
+        if c["doc_type"] == "contract"
+    ]
+    policies = [f"[{c['source_id']} | {c['title']}] {c['text']}" for c in inp.context if c["doc_type"] == "policy"]
+    lines = [f"{li['description']} | qty {li['quantity']} | unit R{li['unit_price']}" for li in inp.line_items]
     body = f"""RULE FINDINGS (established facts, already scored):
 {_bullets([f"{f['type']}: {f['description']}" for f in flagged])}
 
@@ -111,6 +139,12 @@ EXTRACTION WARNINGS (from code validation):
 RELEVANT POLICIES:
 {_bullets(policies)}
 
+INVOICE LINE ITEMS (as extracted):
+{_bullets(lines)}
+
+CONTRACT CLAUSES (this supplier's agreement in force on the invoice date):
+{chr(10).join(contract) if contract else NO_CONTRACT}
+
 <{DOC_TAG}>
 {_neutralise(inp.invoice_text)}
 </{DOC_TAG}>"""
@@ -119,8 +153,13 @@ RELEVANT POLICIES:
 
 def report_messages(inp: ReportInput) -> list:
     inv = inp.invoice
+
+    def cites(e: dict) -> str:
+        c = [f"{x['source']}, {x.get('section') or ''}, p.{x.get('page')}" for x in e.get("citations") or []]
+        return f" (source: {'; '.join(c)})" if c else ""
+
     evidence = [
-        f"{e['type']} [{e['source']}, weight {e['weight']}]: {e['description']}"
+        f"{e['type']} [{e['source']}, weight {e['weight']}]: {e['description']}{cites(e)}"
         for e in inp.evidence
         if e["type"] != "CONFIRMED_MATCH"
     ]

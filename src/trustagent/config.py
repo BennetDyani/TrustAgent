@@ -53,6 +53,8 @@ class Settings(BaseSettings):
     embedding_model: str = "gemini-embedding-001"
     # Must equal the pgvector column dimension; checked at start-up.
     embedding_dim: int = 768
+    # Gemini free tier: 100 embeddings/min, and every text in a batch counts (hit during ingestion).
+    embedding_requests_per_minute: float = 90
 
     # --- Business rules (POL-001..POL-004) ----------------------------------
     large_transaction_threshold: Decimal = Decimal("100000")  # POL-002

@@ -14,18 +14,21 @@ from typing import Any
 
 from langgraph.config import get_stream_writer
 from langgraph.types import interrupt
-from sqlalchemy import delete, select
+from sqlalchemy import delete
 from sqlalchemy.orm import sessionmaker
 
+from trustagent.config import get_settings
 from trustagent.db import repository as repo
-from trustagent.db.models import EvidenceRow, InvestigationRow, InvoiceRow, PolicyRow
-from trustagent.domain import Approver, HumanAction, RiskIndicator, RiskLevel
+from trustagent.db.models import EvidenceRow, InvestigationRow, InvoiceRow
+from trustagent.domain import Approver, HumanAction, Invoice, RiskIndicator, RiskLevel
 from trustagent.graph.deep_dive import DeepDiveInput, DeepDiver
 from trustagent.graph.llm_steps import Reporter, ReportInput, Reviewer, ReviewInput
 from trustagent.graph.routing import deep_dive_reason
 from trustagent.graph.state import InvestigationState
 from trustagent.llm.factory import LLMUnavailable
+from trustagent.rag.context import ContextRetriever, policy_table_context
 from trustagent.rules.checks import run_rule_checks
+from trustagent.rules.contract import check_contract_terms
 from trustagent.rules.recommendation import (
     fallback_recommendation,
     filter_ai_indicators,
@@ -37,16 +40,6 @@ from trustagent.rules.recommendation import (
 from trustagent.rules.scoring import calculate_risk
 from trustagent.workflow.actions import apply_human_action
 
-ContextRetriever = Callable[[Any, dict, dict | None], list[dict[str, Any]]]
-
-
-def policy_context(session, invoice: dict, supplier: dict | None) -> list[dict[str, Any]]:
-    """Phase 3 context: the policy table, with citations. Replaced by RAG retrieval in phase 4."""
-    return [
-        {"source_id": p.id, "title": p.name, "text": p.rule, "citation": {"source": p.id, "section": p.name}}
-        for p in session.scalars(select(PolicyRow).order_by(PolicyRow.id))
-    ]
-
 
 @dataclass
 class Deps:
@@ -54,7 +47,7 @@ class Deps:
     reviewer: Reviewer
     reporter: Reporter
     deep_diver: DeepDiver
-    context_retriever: ContextRetriever = policy_context
+    context_retriever: ContextRetriever = policy_table_context
 
 
 def _emit(event: str, **data: Any) -> None:
@@ -112,9 +105,17 @@ def make_nodes(deps: Deps) -> dict[str, Callable]:
 
     def retrieve_context(state: InvestigationState) -> dict:
         with sf() as s:
-            context = deps.context_retriever(s, state["invoice"], state.get("supplier"))
-        _activity("Policies and contracts retrieved", ", ".join(c["source_id"] for c in context) or "none found")
-        return {"context": context, "contract_findings": []}
+            ctx = deps.context_retriever(s, state["invoice"], state.get("supplier"), state["rule_findings"])
+        # Each rule finding cites the policy-manual section that governs it.
+        rules = [
+            {**r, "citations": r.get("citations") or ctx.rule_citations.get(r["type"], [])}
+            for r in state["rule_findings"]
+        ]
+        sources = sorted({f"{c['source_id']} ({c['doc_type']})" for c in ctx.items})
+        contract = {True: "contract on file", False: "no contract on file", None: "contract n/a"}[ctx.contract_on_file]
+        _activity("Policies and contracts retrieved", f"{contract}; {len(ctx.items)} passage(s): {', '.join(sources)}")
+        return {"context": ctx.items, "contract_on_file": ctx.contract_on_file, "rule_findings": rules,
+                "contract_findings": [], "notes": ctx.notes}  # fmt: skip
 
     def ai_review(state: InvestigationState) -> dict:
         warnings = [
@@ -127,12 +128,13 @@ def make_nodes(deps: Deps) -> dict[str, Callable]:
             history_count=state.get("history_count", 0),
             extraction_warnings=warnings,
             context=state.get("context", []),
+            line_items=state["invoice"].get("line_items", []),
         )
         try:
             review, usage = deps.reviewer(inp)
         except LLMUnavailable as exc:
             _activity("AI review unavailable", "Continuing with rule checks only.", status="FAILED")
-            return {"ai_findings": [], "ai_review_available": False, "ai_summary": "",
+            return {"ai_findings": [], "ai_review_available": False, "ai_summary": "", "ai_contract_terms": [],
                     "notes": [f"AI review unavailable: {exc}"]}  # fmt: skip
         findings, ignored = [], []
         for obs in review.observations:  # one at a time, so each keeps its own quote
@@ -145,7 +147,34 @@ def make_nodes(deps: Deps) -> dict[str, Callable]:
             findings += [{**a.model_dump(mode="json"), "description": a.description + quote} for a in accepted]
         _activity("AI document review completed", f"{len(findings)} observation(s)")
         return {"ai_findings": findings, "ai_review_available": True, "ai_summary": review.summary,
+                "ai_contract_terms": [t.model_dump() for t in review.contract_terms],
                 "ignored_ai_types": ignored, "usage": [usage]}  # fmt: skip
+
+    def contract_check(state: InvestigationState) -> dict:
+        """Code compares invoice prices with the contract rates the AI mapped and quoted (ADR-049)."""
+        if not state.get("contract_on_file"):
+            return {"contract_findings": []}
+        chunks = {
+            c["chunk_id"]: {"content": c["text"], "contract_id": c["contract_id"], "citation": c["citation"]}
+            for c in state.get("context", [])
+            if c["doc_type"] == "contract" and c["chunk_id"] is not None
+        }
+        terms = state.get("ai_contract_terms", [])
+        if not terms:
+            note = "Contract on file, but no line items were mapped to contract rates"
+            note += "" if state.get("ai_review_available") else " (AI review unavailable)"
+            _activity("Contract check skipped", note)
+            return {"contract_findings": [], "notes": [note]}
+        result = check_contract_terms(
+            Invoice.model_validate(state["invoice"]), terms, chunks, get_settings().contract_rate_tolerance
+        )
+        findings = [i.model_dump(mode="json") for i in result.indicators]
+        deviations = sum(f["type"] == "CONTRACT_DEVIATION" for f in findings)
+        _activity(
+            "Contract check completed",
+            f"{deviations} price deviation(s), {len(findings) - deviations} line(s) at the contract rate",
+        )
+        return {"contract_findings": findings, "notes": [f"Contract check: {n}" for n in result.notes]}
 
     def provisional_score(state: InvestigationState) -> dict:
         risk = calculate_risk(RiskIndicator.model_validate(f) for f in _all_findings(state))
@@ -291,6 +320,7 @@ def make_nodes(deps: Deps) -> dict[str, Callable]:
         "rule_checks": rule_checks,
         "retrieve_context": retrieve_context,
         "ai_review": ai_review,
+        "contract_check": contract_check,
         "provisional_score": provisional_score,
         "route_after_provisional": route_after_provisional,
         "deep_dive": deep_dive,

@@ -33,6 +33,8 @@ from trustagent.graph.builder import build_graph, thread_id
 from trustagent.graph.deep_dive import llm_deep_diver
 from trustagent.graph.llm_steps import llm_reporter, llm_reviewer
 from trustagent.graph.nodes import Deps
+from trustagent.rag.context import rag_context
+from trustagent.rag.embeddings import GeminiEmbedder
 from trustagent.workflow.actions import ActionResult
 from trustagent.workflow.approvals import ROLE_LABELS
 from trustagent.workflow.guards import GuardError, check_can_rerun, check_can_start
@@ -60,6 +62,7 @@ def default_deps(session_factory: sessionmaker) -> Deps:
         reviewer=llm_reviewer(),
         reporter=llm_reporter(),
         deep_diver=llm_deep_diver(session_factory),
+        context_retriever=rag_context(GeminiEmbedder()),
     )
 
 

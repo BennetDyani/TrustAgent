@@ -19,6 +19,7 @@ cp .env.example .env            # then add GOOGLE_API_KEY and GROQ_API_KEY
 docker compose up -d            # Postgres 16 + pgvector on localhost:5433
 uv run alembic upgrade head
 uv run python -m trustagent.db.seed
+uv run python -m trustagent.rag.ingest   # contracts + policy manual -> pgvector (~1 min, free-tier paced)
 uv run pytest
 ```
 
@@ -40,4 +41,5 @@ uv run jupyter lab notebooks/
 |---|---|---|
 | `01_extraction.ipynb` | PDF → text → as-printed fields → validated invoice; the last-4-digit trap; OCR honesty; redaction; accuracy on all samples | real (Gemini) |
 | `02_rules_and_scoring.ipynb` | Rule checks and scores for all 11 samples; why LOW, why CRITICAL; duplicates vs recurring invoices; minimum action | real extraction; rules offline. Runs in a rolled-back transaction |
+| `03_rag_ingestion_and_retrieval.ipynb` | Manifest metadata, boilerplate removal, structure-aware chunks, normalised embeddings, RRF, vector vs keyword vs hybrid side by side, the expired-contract filter, citations, "no contract on file", and the live contract check on INV-1048 | real (Gemini embeddings + chat); read-only |
 | `04_langgraph_investigation.ipynb` | The graph (Mermaid), a live BEC investigation streamed step by step, pause at `interrupt()`, the bank-change hold, supplier verification by phone and email, resume and approve, checkpoint history, audit trail, dual approval, graceful degradation, token usage | real (Gemini); scratch database |
