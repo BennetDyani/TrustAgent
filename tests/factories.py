@@ -51,7 +51,7 @@ def txn(amount: str, supplier_id: str = "SUP-X", status: str = "COMPLETED", n: i
 def invoice_document(ex, extra: str = "") -> str:
     """Render an ExtractedInvoice as a small Markdown invoice that really contains its values.
 
-    Extraction is grounded in the document (ADR-047), so fake extractions need a document that
+    Extraction is grounded in the document (ADR-046), so fake extractions need a document that
     matches them, just as a real one would.
     """
     lines = [

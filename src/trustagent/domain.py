@@ -150,7 +150,7 @@ class Invoice(BaseModel):
     line_items: list[LineItem] = Field(default_factory=list)
     status: InvoiceStatus = InvoiceStatus.SUBMITTED
     urgency: Urgency = Urgency.NORMAL
-    # Every bank account number found in the document (masked), by a code scanner (ADR-047).
+    # Every bank account number found in the document (masked), by a code scanner (ADR-046).
     document_accounts: list[str] = Field(default_factory=list)
 
     def model_post_init(self, _context: object) -> None:

@@ -64,7 +64,7 @@ def test_bank_change_still_allows_the_cautious_actions(action):
     check_action_allowed(S.ACTION_REQUIRED, action, verification=None, bank_details_changed=True)
 
 
-# --- re-run required after verification (weak spot 1, ADR-049) --------------------------------
+# --- re-run required after verification (weak spot 1, ADR-048) --------------------------------
 
 
 def test_approval_after_verification_needs_a_rerun_first():

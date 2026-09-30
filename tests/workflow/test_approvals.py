@@ -87,7 +87,7 @@ def test_outstanding_roles():
     assert outstanding_roles(SMALL, []) == []  # any single role will do; see is_complete
 
 
-# --- risk-based authority and separation of duties (weak spot 1, ADR-049) ---------------------
+# --- risk-based authority and separation of duties (weak spot 1, ADR-048) ---------------------
 
 from trustagent.domain import RiskLevel  # noqa: E402
 from trustagent.workflow.approvals import separation_of_duties_error  # noqa: E402

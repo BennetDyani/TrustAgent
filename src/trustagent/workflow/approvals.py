@@ -81,12 +81,12 @@ def record_approval(
             f"{approver.name} has already approved this payment. A second approval must come from a different person."
         )
 
-    # Approval authority scales with risk (ADR-049): an analyst can hold, escalate or reject a
+    # Approval authority scales with risk (ADR-048): an analyst can hold, escalate or reject a
     # HIGH/CRITICAL case, but approving one needs a Finance Manager or Department Head.
     if risk_level in (RiskLevel.HIGH, RiskLevel.CRITICAL) and approver.role not in HIGH_RISK_APPROVER_ROLES:
         return ApprovalError(
             f"This case is {risk_level.value} risk, so approval needs a Finance Manager or a Department Head "
-            f"(ADR-049). A {ROLE_LABELS[approver.role]} can hold, escalate or reject it."
+            f"(ADR-048). A {ROLE_LABELS[approver.role]} can hold, escalate or reject it."
         )
 
     if requires_dual_authorization(amount):
@@ -111,7 +111,7 @@ def record_approval(
 
 
 def separation_of_duties_error(verification: dict | None, approver: Approver) -> str | None:
-    """The person who verified the supplier's bank details can't approve the payment (ADR-049)."""
+    """The person who verified the supplier's bank details can't approve the payment (ADR-048)."""
     v = verification or {}
     if v.get("status") == "VERIFIED" and _same_person(v.get("verified_by_name") or "", approver.name):
         return (

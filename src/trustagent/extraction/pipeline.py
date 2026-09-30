@@ -62,7 +62,7 @@ def extract_document(filename: str, content: bytes, extractor: Extractor | None 
     invoice, missing = normalized.invoice, list(normalized.missing_critical)
 
     if invoice is not None and method == "llm":
-        # Grounding (ADR-047): the model's values must literally appear in the document.
+        # Grounding (ADR-046): the model's values must literally appear in the document.
         if not number_in_document(extracted.bank_account_number, source.text):
             missing.append("bank account number (not found in the document)")
         if not amount_in_document(invoice.amount, source.text):

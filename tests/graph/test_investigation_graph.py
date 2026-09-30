@@ -145,7 +145,7 @@ def test_hold_then_verify_by_phone_and_email_then_approve(service, upload, clean
     assert outcome.cases_verified == [case_id]
     assert case_row(clean_db, case_id).verification["status"] == "VERIFIED"
 
-    # ADR-049: the score must reflect the verified facts first...
+    # ADR-048: the score must reflect the verified facts first...
     too_soon = service.act(case_id, HumanAction.APPROVE_PAYMENT, LERATO)
     assert not too_soon.ok and "Re-run" in too_soon.message
     list(service.rerun(case_id, THANDI))

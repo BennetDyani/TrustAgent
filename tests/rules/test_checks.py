@@ -366,7 +366,7 @@ def test_sample_inv_1049_metro_is_clean():
     assert flagged(run(_metro("INV-1049", 8, 1), supplier="SUP-002")) == set()
 
 
-# --- documents listing two accounts; accounts shared with another supplier (ADR-047/048) -------
+# --- documents listing two accounts; accounts shared with another supplier (ADR-046/048) -------
 
 from trustagent.rules.checks import KnownAccount, same_bank  # noqa: E402
 

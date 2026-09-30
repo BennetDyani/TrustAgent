@@ -314,7 +314,7 @@ def check_duplicate(ctx: CheckContext, policy: RulePolicy) -> list[RiskIndicator
 
 
 def check_multiple_accounts(ctx: CheckContext, policy: RulePolicy) -> list[RiskIndicator]:
-    """The document lists more than one bank account (ADR-047)."""
+    """The document lists more than one bank account (ADR-046)."""
     accounts = ctx.invoice.document_accounts
     if len(accounts) < 2:
         return []
@@ -329,7 +329,7 @@ def check_multiple_accounts(ctx: CheckContext, policy: RulePolicy) -> list[RiskI
 
 
 def check_shared_account(ctx: CheckContext, policy: RulePolicy) -> list[RiskIndicator]:
-    """This bank account is already linked to a DIFFERENT supplier: a money-mule or fake-supplier signal (ADR-048).
+    """This bank account is already linked to a DIFFERENT supplier: a money-mule or fake-supplier signal (ADR-047).
 
     Only the last 4 digits are stored, so a match needs the same last 4 digits AND the same bank.
     """

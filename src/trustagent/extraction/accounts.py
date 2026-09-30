@@ -1,4 +1,4 @@
-"""Deterministic checks on the document itself (weak spot 2, ADR-047).
+"""Deterministic checks on the document itself (weak spot 2, ADR-046).
 
 The model extracts fields, but it must not be the only thing deciding which
 bank account an invoice pays. Code checks two things:

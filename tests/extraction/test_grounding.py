@@ -1,4 +1,4 @@
-"""Extracted values must be grounded in the document (weak spot 2, ADR-047)."""
+"""Extracted values must be grounded in the document (weak spot 2, ADR-046)."""
 
 import pytest
 
