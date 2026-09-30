@@ -23,6 +23,20 @@ uv run python -m trustagent.rag.ingest   # contracts + policy manual -> pgvector
 uv run pytest
 ```
 
+### Run the demo
+
+```bash
+uv run python scripts/reset_demo.py --with-samples                     # clean demo data, 5 JSON cases ready
+uv run uvicorn trustagent.api.app:app --port 8000                      # API (docs at http://localhost:8000/docs)
+uv run streamlit run src/trustagent/ui/app.py                          # UI at http://localhost:8501
+```
+
+In the UI, choose who you are **acting as** (Finance Analyst, Finance Manager or Department Head). Upload a PDF
+or Markdown invoice (read by the AI) or JSON (read by code), open the case, and **run** the investigation to
+watch the evidence stream in. Decision buttons appear only afterwards, and a disabled one shows why. Verify a
+supplier's new bank account on the **Suppliers** page (phone and email, from trusted sources), re-run, and
+approve as a different person.
+
 ### Tests
 
 ```bash

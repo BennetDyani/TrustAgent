@@ -607,6 +607,57 @@ regenerate the exact files.
 
 ---
 
+## Phase 5: API and UI
+
+### ADR-054: The API is the contract; the UI is just one client
+
+**Decision.** FastAPI exposes upload, case list and detail, run/re-run/recover as **SSE streams**, human
+actions, suppliers and verification. The Streamlit UI talks to it only over HTTP (`ui/client.py`) and never
+imports the workflow. An ERP bot or an n8n flow would use exactly the same endpoints.
+**Trade-off.** One extra hop compared with calling Python directly, but the UI can't bypass a single control,
+and the API is testable on its own (21 tests).
+
+### ADR-055: Identity only from the `X-Acting-As` header; request bodies can't carry it (bug #8)
+
+The server resolves the header against `workflow/identity.py`. `ActionRequest` accepts only `action` and
+`note`, and uses `extra="forbid"`: a body with `"approver": {...}` is rejected with 422, not silently ignored.
+Unknown or missing identity gives 401. Production would replace the header with SSO/OIDC claims, and nothing
+else would change.
+
+### ADR-056: No blocking in async, enforced by a test (bug #9)
+
+Every endpoint is a plain `def` (FastAPI runs it in a thread pool). SSE bodies are sync generators, which
+Starlette iterates in a thread pool. A test fails if any of our endpoints is `async def`. The graph, the database
+and the model calls are all synchronous, so this is the honest shape. No `async` wrapper hides a blocking call.
+
+### ADR-057: A refused start is a 409, not a 200 with an error inside
+
+A streaming response sends `200 OK` before its body runs. The API therefore *primes* the generator (the atomic
+`PENDING → IN_PROGRESS` claim happens on the first `next()`) before returning the response. A second click on
+"Run" gets a proper 409, and so does a run on an unknown case (404). Tested, and seen live.
+
+### ADR-058: Evidence before decisions, with the reason for every blocked action
+
+The case detail includes `actions` **only once the investigation has completed** (empty while `PENDING` or
+`IN_PROGRESS`). Each action has `allowed` and, if not allowed, the reason, computed for the viewing user with the
+same pure guard and approval functions the server enforces. The UI shows disabled buttons with those reasons
+("Sipho verified this supplier's bank details, so someone else must approve"), and the server checks again when
+an action arrives. The UI can explain a refusal; it can never permit an action the server wouldn't.
+
+### ADR-059: Demo tooling and UI testing
+
+- `scripts/reset_demo.py [--with-samples]` restores a clean demo database, keeping the ingested documents so
+  nothing is re-embedded. It uses `TRUNCATE` and is documented as demo-only.
+- The UI is tested **against the real API in-process**. FastAPI's `TestClient` *is* an `httpx.Client`, so the
+  UI's `ApiClient` takes it as its transport. Streamlit's `AppTest` then renders each page, checks that Approve
+  is disabled with the right reason, and checks that switching "Acting as" changes who may act.
+- **Found live:** `use_container_width` is deprecated in the installed Streamlit 1.64 (to be removed). It was
+  replaced with `width="stretch"`, per bug #2: check APIs against installed versions.
+- `python-multipart` (needed for uploads) is now a direct dependency. It was already installed through Streamlit,
+  but the API mustn't depend on the UI's dependencies.
+
+---
+
 ## Lessons caught during the build
 
 - **Phase 0: a field named `date` shadowed the `date` type.** In both the Pydantic and SQLAlchemy

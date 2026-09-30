@@ -78,6 +78,9 @@ class Settings(BaseSettings):
     # --- Agent ---------------------------------------------------------------
     deep_dive_recursion_limit: int = 8
 
+    # --- UI ------------------------------------------------------------------
+    api_base_url: str = "http://localhost:8000"
+
     # --- Paths -----------------------------------------------------------------
     data_dir: Path = PROJECT_ROOT / "data"
 

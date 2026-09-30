@@ -17,6 +17,8 @@ def test_every_module_imports():
     for module in pkgutil.walk_packages(trustagent.__path__, prefix="trustagent."):
         if ".migrations" in module.name:
             continue  # Alembic scripts only run inside an Alembic context
+        if module.name == "trustagent.ui.app":
+            continue  # a Streamlit script, run by `streamlit run`; covered by the AppTest tests
         importlib.import_module(module.name)
 
 
