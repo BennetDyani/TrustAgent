@@ -16,11 +16,21 @@ from trustagent.domain import Action, Caution, IndicatorSource, RiskIndicator, R
 AI_INDICATOR_TYPES = frozenset({"SOCIAL_ENGINEERING", "DOCUMENT_ANOMALY", "OTHER"})
 
 
-def minimum_action(level: RiskLevel | None, supplier_verified: bool) -> Action:
-    """The least cautious action the risk level allows.
+# Findings that require HOLD whatever the score (policy decision, ADR-029): a changed
+# bank account on a verified supplier is held until finance confirms the new account
+# by phone AND email, using contact details from the onboarding records.
+HOLD_REQUIRED_FINDINGS = frozenset({"BANK_DETAILS_CHANGED"})
 
-    An unverified supplier is never recommended for straight approval, however low the score.
+
+def minimum_action(level: RiskLevel | None, supplier_verified: bool, findings: Iterable[str] = ()) -> Action:
+    """The least cautious action allowed.
+
+    ``findings`` are the indicator types found. Some force HOLD regardless of
+    the score. An unverified supplier is never recommended for straight
+    approval, however low the score.
     """
+    if HOLD_REQUIRED_FINDINGS & set(findings):
+        return Action.HOLD_PAYMENT
     match level:
         case RiskLevel.CRITICAL | RiskLevel.HIGH:
             return Action.HOLD_PAYMENT
@@ -32,13 +42,15 @@ def minimum_action(level: RiskLevel | None, supplier_verified: bool) -> Action:
             return Action.ESCALATE
 
 
-def resolve_recommended_action(proposed: Any, level: RiskLevel | None, supplier_verified: bool) -> tuple[Action, bool]:
+def resolve_recommended_action(
+    proposed: Any, level: RiskLevel | None, supplier_verified: bool, findings: Iterable[str] = ()
+) -> tuple[Action, bool]:
     """Accept the model's action only if it is at least as cautious as the minimum.
 
     Returns ``(action, raised)``, where ``raised`` is True when the proposal was
     missing, invalid or too lenient and the minimum was used instead.
     """
-    floor = minimum_action(level, supplier_verified)
+    floor = minimum_action(level, supplier_verified, findings)
     try:
         action = Action(proposed)
     except (ValueError, TypeError):
@@ -56,13 +68,23 @@ _FALLBACK_TEXT = {
 }
 
 
-def fallback_recommendation(level: RiskLevel | None, supplier_verified: bool, ai_available: bool) -> tuple[Action, str]:
+BANK_CHANGE_TEXT = (
+    "The bank account differs from the verified record (POL-001). Payment must stay on hold until the finance "
+    "team confirms the new account by phone AND email, using contact details from the original onboarding "
+    "records, never those printed on the invoice."
+)
+
+
+def fallback_recommendation(
+    level: RiskLevel | None, supplier_verified: bool, ai_available: bool, findings: Iterable[str] = ()
+) -> tuple[Action, str]:
     """Rule-only recommendation, used when the model is unavailable or fails."""
-    action = minimum_action(level, supplier_verified)
+    findings = set(findings)
+    action = minimum_action(level, supplier_verified, findings)
     parts = []
     if level is not None:
         parts.append(f"Risk level is {level.value}.")
-    parts.append(_FALLBACK_TEXT[action])
+    parts.append(BANK_CHANGE_TEXT if HOLD_REQUIRED_FINDINGS & findings else _FALLBACK_TEXT[action])
     if not ai_available:
         parts.append(
             "The AI review was unavailable, so this assessment is based on the deterministic rule checks only. "

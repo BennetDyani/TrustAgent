@@ -290,13 +290,35 @@ evaluation, so all three score extraction the same way.
 - Gemini `gemini-3.5-flash-lite`: 192/192 fields, including the 5 JSON twins; about 2 s per document.
 - Groq `openai/gpt-oss-120b`: 132/132 fields on the 11 documents, at 2–25 s each (free-tier rate limits).
 
-### Open policy question: should a bank-details change always mean HOLD?
+### ADR-029: A bank-details change always means HOLD until finance verifies by phone AND email
 
-On rules alone, INV-1050 (verified supplier, new bank account) scores 45, MEDIUM, and gets
-`REQUEST_VERIFICATION`, although POL-001's own action is "HOLD payment". The minimum-action table is by risk
-level only, as in the reference. The AI review is expected to add `SOCIAL_ENGINEERING` for the "account closed,
-pay urgently" wording, which would lift it to HIGH, but that depends on the model. **Undecided. Raised with
-Bennet.**
+**Context.** On rules alone, INV-1050 (a verified supplier's new bank account) scored 45, MEDIUM, with a minimum
+action of `REQUEST_VERIFICATION`, although POL-001 says "HOLD payment".
+**Decision (Bennet, 2026-09-30).** When a supplier's account changes, payment is held, and the finance team must
+verify the new account **by email and by phone** before the supplier is marked verified.
+- `minimum_action` holds whatever the score when `BANK_DETAILS_CHANGED` is found (`HOLD_REQUIRED_FINDINGS`).
+  The model can't lower it, and the rule-only fallback says why.
+- The guard refuses `APPROVE_PAYMENT` on such a case until its verification is `VERIFIED`.
+- `validate_verification` accepts a verification only with **both** channels confirmed, the phone number and
+  email address recorded, **both taken from the original onboarding records**, and the confirmed account
+  number. A contact printed on the invoice is exactly what a fraudster controls, so the source is an explicit
+  field (`onboarding_record | invoice | other`), not free text.
+- After a supplier is verified, a case clears only if its invoice account matches the verified record. If the
+  supplier confirmed its *old* account, the case stays held.
+
+**Trade-off.** More work for finance on every bank change, including genuine ones. That's the point: bank-detail
+changes are the most common BEC loss, and a phone call costs less than a redirected payment. Covered by tests
+and three new mutation-check entries.
+
+### ADR-030: HOLD keeps the case open; a separate Reject action closes confirmed fraud
+
+**Context.** In the reference, HOLD closed the case. Under ADR-029 a held payment is *waiting for verification*.
+It has to stay open so it can be re-run and paid once the account is verified.
+**Decision (implemented in phase 3).** `HOLD_PAYMENT` puts the invoice `ON_HOLD`, opens a verification request,
+and leaves the case `ACTION_REQUIRED`. A new human-only action, **Reject invoice**, closes a case confirmed as
+fraud or otherwise not payable. It isn't in the model's action list, so the model can't recommend closing a case.
+**Trade-off.** One more button than the brief listed, but "held" and "rejected" are different business outcomes,
+and conflating them was a latent bug.
 
 ---
 

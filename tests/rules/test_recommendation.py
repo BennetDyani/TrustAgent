@@ -93,3 +93,30 @@ def test_filter_accepts_pydantic_like_objects():
 
     accepted, ignored = filter_ai_indicators([Obs()])
     assert [i.type for i in accepted] == ["SOCIAL_ENGINEERING"] and ignored == []
+
+
+# --- bank-details change always means HOLD (Bennet's policy decision, ADR-029) ------------
+
+
+@pytest.mark.parametrize("level", [RiskLevel.LOW, RiskLevel.MEDIUM, RiskLevel.HIGH, RiskLevel.CRITICAL, None])
+def test_bank_details_change_requires_hold_at_any_level(level):
+    assert minimum_action(level, True, findings={"BANK_DETAILS_CHANGED"}) == A.HOLD_PAYMENT
+
+
+def test_other_findings_do_not_change_the_floor():
+    assert minimum_action(RiskLevel.MEDIUM, True, findings={"THRESHOLD_AVOIDANCE"}) == A.REQUEST_VERIFICATION
+
+
+def test_model_cannot_lower_a_bank_change_below_hold():
+    action, raised = resolve_recommended_action(
+        "REQUEST_VERIFICATION", RiskLevel.MEDIUM, True, findings={"BANK_DETAILS_CHANGED"}
+    )
+    assert (action, raised) == (A.HOLD_PAYMENT, True)
+
+
+def test_fallback_for_bank_change_holds_and_says_why():
+    action, text = fallback_recommendation(
+        RiskLevel.MEDIUM, supplier_verified=True, ai_available=True, findings={"BANK_DETAILS_CHANGED"}
+    )
+    assert action == A.HOLD_PAYMENT
+    assert "phone" in text and "email" in text

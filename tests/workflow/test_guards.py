@@ -42,3 +42,23 @@ def test_rerun_only_on_open_cases():
     for status in (S.PENDING, S.IN_PROGRESS, S.CLOSED):
         with pytest.raises(GuardError):
             check_can_rerun(status)
+
+
+# --- bank-details change: no approval until verified by phone and email (ADR-029) ----------
+
+
+def test_bank_change_blocks_approval_until_verified():
+    with pytest.raises(GuardError, match="phone and email"):
+        check_action_allowed(S.ACTION_REQUIRED, Action.APPROVE_PAYMENT, verification=None, bank_details_changed=True)
+    with pytest.raises(GuardError):
+        check_action_allowed(
+            S.ACTION_REQUIRED, Action.APPROVE_PAYMENT, verification={"status": "PENDING"}, bank_details_changed=True
+        )
+    check_action_allowed(
+        S.ACTION_REQUIRED, Action.APPROVE_PAYMENT, verification={"status": "VERIFIED"}, bank_details_changed=True
+    )
+
+
+@pytest.mark.parametrize("action", [Action.HOLD_PAYMENT, Action.ESCALATE, Action.REQUEST_VERIFICATION])
+def test_bank_change_still_allows_the_cautious_actions(action):
+    check_action_allowed(S.ACTION_REQUIRED, action, verification=None, bank_details_changed=True)

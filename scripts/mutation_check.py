@@ -57,9 +57,27 @@ M = [
     ),
     (
         "src/trustagent/workflow/guards.py",
-        'and (verification or {}).get("status") == "PENDING"',
-        "and False",
+        'if verification_status == "PENDING":',
+        "if False:",
         "approve blocked when pending",
+    ),
+    (
+        "src/trustagent/workflow/guards.py",
+        'if bank_details_changed and verification_status != "VERIFIED":',
+        "if False:",
+        "bank change blocks approval until verified",
+    ),
+    (
+        "src/trustagent/rules/recommendation.py",
+        "if HOLD_REQUIRED_FINDINGS & set(findings):",
+        "if False:",
+        "bank change forces HOLD",
+    ),
+    (
+        "src/trustagent/workflow/verification.py",
+        'if evidence.phone_source != "onboarding_record" or evidence.email_source != "onboarding_record":',
+        'if evidence.phone_source != "onboarding_record":',
+        "email must come from onboarding record",
     ),
 ]
 missed = 0
