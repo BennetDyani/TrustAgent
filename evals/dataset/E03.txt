@@ -1,0 +1,23 @@
+Metro Cleaning Services CC
+billing@metrocleaning.co.za
+
+TAX INVOICE MC-1003
+Invoice date: 2026-10-01
+Payment due: 2026-10-31
+Priority: Normal
+
+Bill to: TrustCorp Holdings Ltd, Rosebank
+
+Items:
+  - Monthly cleaning service - October 2026 (Mon-Fri, offices 1-4): 1 x R 12,500.00 = R 12,500.00
+  - Deep clean - boardroom and executive offices: 1 x R 3,500.00 = R 3,500.00
+
+Subtotal R 16,000.00
+VAT 15% R 2,400.00
+Amount due R 18,400.00
+
+Remit to: Standard Bank
+Account name: Metro Cleaning Services CC
+Account no: 0412039821 7733
+
+

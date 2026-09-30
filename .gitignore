@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+
+# Secrets: only .env.example is committed
+.env
+
+# Notebooks
+.ipynb_checkpoints/
+
+# Eval run outputs (the summary table goes in the README)
+evals/runs/
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

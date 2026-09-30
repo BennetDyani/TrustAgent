@@ -1,0 +1,748 @@
+{
+  "E12": {
+    "summary": "Invoice ABC-5105 from ABC Office Solutions (Pty) Ltd for R21,160.00 shows a bank account change from the verified account on file ****4821 (First National Bank) to a new account ****0911 (Capitec Bank). Per FIN-POL-01_Procurement_and_Payments_Policy_Manual.pdf, Section 5.2 Verification procedure (POL-001), independent phone verification is required before payment. Although the line item rates and supplier details match contract ABC-2026-017, the bank account mismatch triggers a medium risk score.",
+    "recommendation": "Keep the payment on hold. Finance must confirm the new bank account by phone AND email, using the contact details in the original onboarding records (never those on the invoice), and then mark the supplier verified (POL-001).",
+    "recommended_action": "HOLD_PAYMENT",
+    "score": 30,
+    "level": "MEDIUM",
+    "evidence": [
+      {
+        "type": "BANK_DETAILS_CHANGED",
+        "source": "RULE",
+        "weight": 30,
+        "description": "Invoice bank account ****0911 (Capitec Bank) does not match the verified account on file ****4821 (First National Bank). POL-001 requires independent phone verification before payment.",
+        "citations": [
+          {
+            "source": "FIN-POL-01_Procurement_and_Payments_Policy_Manual.pdf",
+            "page": 3,
+            "section": "5 Supplier Bank Account Changes (POL-001) > 5.2 Verification procedure"
+          }
+        ]
+      },
+      {
+        "type": "CONFIRMED_MATCH",
+        "source": "RULE",
+        "weight": 0,
+        "description": "Bank account holder \"ABC Office Solutions (Pty) Ltd\" matches the supplier name.",
+        "citations": []
+      },
+      {
+        "type": "CONFIRMED_MATCH",
+        "source": "RULE",
+        "weight": 0,
+        "description": "Invoice contact domain \"abcoffice.co.za\" matches the supplier record.",
+        "citations": []
+      },
+      {
+        "type": "CONFIRMED_MATCH",
+        "source": "RULE",
+        "weight": 0,
+        "description": "Amount R21,160 is within the expected range of R15,000-R40,000.",
+        "citations": []
+      },
+      {
+        "type": "CONFIRMED_MATCH",
+        "source": "CONTRACT",
+        "weight": 0,
+        "description": "'Toner cartridges - HP 58A' at R1,150.00 matches the contract rate of R1,150.00 (ABC-2026-017, 4 Rates).",
+        "citations": [
+          {
+            "source": "ABC-2026-017_ABC_Office_Solutions_Supply_Agreement.pdf",
+            "page": 1,
+            "section": "4 Rates"
+          }
+        ]
+      }
+    ],
+    "next_steps": [
+      "Keep the payment on hold. Finance must confirm the new bank account by phone AND email, using the contact details in the original onboarding records (never those on the invoice), and then mark the supplier verified (POL-001)."
+    ]
+  },
+  "E01": {
+    "summary": "Invoice ABC-5101 from ABC Office Solutions (Pty) Ltd for R23,874.00 has passed all verification checks without issue. The bank account details match the verified file, the domain is correct, the amount is within the expected range, and the line items for copy paper and toner cartridges match contract rates under ABC-2026-017. The AI document review confirms this is a routine invoice from a verified supplier.",
+    "recommendation": "No further checks are required; the payment can go through normal approval.",
+    "recommended_action": "APPROVE_PAYMENT",
+    "score": 0,
+    "level": "LOW",
+    "evidence": [
+      {
+        "type": "CONFIRMED_MATCH",
+        "source": "RULE",
+        "weight": 0,
+        "description": "Bank account ****4821 matches the verified account on file for ABC Office Solutions.",
+        "citations": []
+      },
+      {
+        "type": "CONFIRMED_MATCH",
+        "source": "RULE",
+        "weight": 0,
+        "description": "Bank account holder \"ABC Office Solutions (Pty) Ltd\" matches the supplier name.",
+        "citations": []
+      },
+      {
+        "type": "CONFIRMED_MATCH",
+        "source": "RULE",
+        "weight": 0,
+        "description": "Invoice contact domain \"abcoffice.co.za\" matches the supplier record.",
+        "citations": []
+      },
+      {
+        "type": "CONFIRMED_MATCH",
+        "source": "RULE",
+        "weight": 0,
+        "description": "Amount R23,874 is within the expected range of R15,000-R40,000.",
+        "citations": []
+      },
+      {
+        "type": "CONFIRMED_MATCH",
+        "source": "CONTRACT",
+        "weight": 0,
+        "description": "'A4 copy paper - 80gsm (box of 5 reams)' at R289.00 matches the contract rate of R289.00 (ABC-2026-017, 4 Rates).",
+        "citations": [
+          {
+            "source": "ABC-2026-017_ABC_Office_Solutions_Supply_Agreement.pdf",
+            "page": 1,
+            "section": "4 Rates"
+          }
+        ]
+      },
+      {
+        "type": "CONFIRMED_MATCH",
+        "source": "CONTRACT",
+        "weight": 0,
+        "description": "'Toner cartridges - HP 58A' at R1,150.00 matches the contract rate of R1,150.00 (ABC-2026-017, 4 Rates).",
+        "citations": [
+          {
+            "source": "ABC-2026-017_ABC_Office_Solutions_Supply_Agreement.pdf",
+            "page": 1,
+            "section": "4 Rates"
+          }
+        ]
+      }
+    ],
+    "next_steps": [
+      "No further checks are required; the payment can go through normal approval."
+    ]
+  },
+  "E13": {
+    "summary": "An investigation of invoice MC-0904 from Metro Cleaning Services CC for R14,375.00 revealed a risk score of 55 out of 100, resulting in a medium risk level. The findings indicate a bank account change from the verified Standard Bank account to a new TymeBank account, violating FIN-POL-01_Procurement_and_Payments_Policy_Manual.pdf, 5 Supplier Bank Account Changes (POL-001) > 5.2 Verification procedure, p.3 (POL-001). Additionally, an email domain mismatch was detected where the invoice contact domain 'metro-cleaning.co.za' differs from the verified supplier domain 'metrocleaning.co.za', raising a lookalike domain concern under the same policy. Although the invoice amount aligns with contract MC-2025-004 rates and past history shows a completed payment, these security flags require strict adherence to standard verification protocols.",
+    "recommendation": "Keep the payment on hold. Finance must confirm the new bank account by phone AND email, using the contact details in the original onboarding records (never those on the invoice), and then mark the supplier verified (POL-001). Confirm with the supplier, through its known contacts, that the account holder and contact email on the invoice are genuinely theirs.",
+    "recommended_action": "HOLD_PAYMENT",
+    "score": 55,
+    "level": "MEDIUM",
+    "evidence": [
+      {
+        "type": "BANK_DETAILS_CHANGED",
+        "source": "RULE",
+        "weight": 30,
+        "description": "Invoice bank account ****7126 (TymeBank) does not match the verified account on file ****7733 (Standard Bank). POL-001 requires independent phone verification before payment.",
+        "citations": [
+          {
+            "source": "FIN-POL-01_Procurement_and_Payments_Policy_Manual.pdf",
+            "page": 3,
+            "section": "5 Supplier Bank Account Changes (POL-001) > 5.2 Verification procedure"
+          }
+        ]
+      },
+      {
+        "type": "CONFIRMED_MATCH",
+        "source": "RULE",
+        "weight": 0,
+        "description": "Bank account holder \"Metro Cleaning Services CC\" matches the supplier name.",
+        "citations": []
+      },
+      {
+        "type": "EMAIL_DOMAIN_MISMATCH",
+        "source": "RULE",
+        "weight": 25,
+        "description": "Invoice contact domain \"metro-cleaning.co.za\" differs from the verified supplier domain \"metrocleaning.co.za\" - a possible lookalike domain.",
+        "citations": [
+          {
+            "source": "FIN-POL-01_Procurement_and_Payments_Policy_Manual.pdf",
+            "page": 3,
+            "section": "5 Supplier Bank Account Changes (POL-001) > 5.2 Verification procedure"
+          }
+        ]
+      },
+      {
+        "type": "CONFIRMED_MATCH",
+        "source": "RULE",
+        "weight": 0,
+        "description": "Amount R14,375 is within the expected range of R10,000-R20,000.",
+        "citations": []
+      },
+      {
+        "type": "CONFIRMED_MATCH",
+        "source": "CONTRACT",
+        "weight": 0,
+        "description": "'Monthly cleaning service - September 2026 (Mon-Fri, offices 1-4)' at R12,500.00 matches the contract rate of R12,500.00 (MC-2025-004, 4 Rates).",
+        "citations": [
+          {
+            "source": "MC-2025-004_Metro_Cleaning_Services_Agreement.pdf",
+            "page": 1,
+            "section": "4 Rates"
+          }
+        ]
+      }
+    ],
+    "next_steps": [
+      "Keep the payment on hold. Finance must confirm the new bank account by phone AND email, using the contact details in the original onboarding records (never those on the invoice), and then mark the supplier verified (POL-001).",
+      "Confirm with the supplier, through its known contacts, that the account holder and contact email on the invoice are genuinely theirs."
+    ]
+  },
+  "E02": {
+    "summary": "This is a routine monthly cleaning service invoice from Metro Cleaning Services CC for R14,375.00 that matches all verified supplier records and correct banking details. The invoice amount aligns precisely with the contracted rate under contract MC-2025-004. The AI document review confirms the details are correct, and all automated checks passed successfully with a low risk score of 0 out of 100.",
+    "recommendation": "No further checks are required; the payment can go through normal approval.",
+    "recommended_action": "APPROVE_PAYMENT",
+    "score": 0,
+    "level": "LOW",
+    "evidence": [
+      {
+        "type": "CONFIRMED_MATCH",
+        "source": "RULE",
+        "weight": 0,
+        "description": "Bank account ****7733 matches the verified account on file for Metro Cleaning Services.",
+        "citations": []
+      },
+      {
+        "type": "CONFIRMED_MATCH",
+        "source": "RULE",
+        "weight": 0,
+        "description": "Bank account holder \"Metro Cleaning Services CC\" matches the supplier name.",
+        "citations": []
+      },
+      {
+        "type": "CONFIRMED_MATCH",
+        "source": "RULE",
+        "weight": 0,
+        "description": "Invoice contact domain \"metrocleaning.co.za\" matches the supplier record.",
+        "citations": []
+      },
+      {
+        "type": "CONFIRMED_MATCH",
+        "source": "RULE",
+        "weight": 0,
+        "description": "Amount R14,375 is within the expected range of R10,000-R20,000.",
+        "citations": []
+      },
+      {
+        "type": "CONFIRMED_MATCH",
+        "source": "CONTRACT",
+        "weight": 0,
+        "description": "'Monthly cleaning service - September 2026 (Mon-Fri, offices 1-4)' at R12,500.00 matches the contract rate of R12,500.00 (MC-2025-004, 4 Rates).",
+        "citations": [
+          {
+            "source": "MC-2025-004_Metro_Cleaning_Services_Agreement.pdf",
+            "page": 1,
+            "section": "4 Rates"
+          }
+        ]
+      }
+    ],
+    "next_steps": [
+      "No further checks are required; the payment can go through normal approval."
+    ]
+  },
+  "E14": {
+    "summary": "An invoice for R5,520.00 from Digital Print Co (Pty) Ltd was reviewed and found to match the contracted rate under contract DPC-2025-009 for business cards. However, the AI document review and evidence revealed critical social engineering red flags, including a pretext about an account being frozen during an audit and instructions not to telephone the office. Furthermore, the invoice bank account ends in ****7801 (African Bank), which does not match the verified account on file ending in ****2190 (Absa Bank). Under policy POL-001 (FIN-POL-01 Procurement and Payments Policy Manual, p.3), independent phone verification is strictly required before any payment can proceed.",
+    "recommendation": "Keep the payment on hold. Finance must confirm the new bank account by phone AND email, using the contact details in the original onboarding records (never those on the invoice), and then mark the supplier verified (POL-001).",
+    "recommended_action": "HOLD_PAYMENT",
+    "score": 30,
+    "level": "MEDIUM",
+    "evidence": [
+      {
+        "type": "BANK_DETAILS_CHANGED",
+        "source": "RULE",
+        "weight": 30,
+        "description": "Invoice bank account ****7801 (African Bank) does not match the verified account on file ****2190 (Absa Bank). POL-001 requires independent phone verification before payment.",
+        "citations": [
+          {
+            "source": "FIN-POL-01_Procurement_and_Payments_Policy_Manual.pdf",
+            "page": 3,
+            "section": "5 Supplier Bank Account Changes (POL-001) > 5.2 Verification procedure"
+          }
+        ]
+      },
+      {
+        "type": "CONFIRMED_MATCH",
+        "source": "RULE",
+        "weight": 0,
+        "description": "Bank account holder \"Digital Print Co (Pty) Ltd\" matches the supplier name.",
+        "citations": []
+      },
+      {
+        "type": "CONFIRMED_MATCH",
+        "source": "RULE",
+        "weight": 0,
+        "description": "Invoice contact domain \"digitalprint.co.za\" matches the supplier record.",
+        "citations": []
+      },
+      {
+        "type": "CONFIRMED_MATCH",
+        "source": "CONTRACT",
+        "weight": 0,
+        "description": "'Business cards - 350gsm matt laminate (per 500)' at R480.00 matches the contract rate of R480.00 (DPC-2025-009, 4 Rates).",
+        "citations": [
+          {
+            "source": "DPC-2025-009_Digital_Print_Co_Rate_Card_Agreement.pdf",
+            "page": 1,
+            "section": "4 Rates"
+          }
+        ]
+      },
+      {
+        "type": "SOCIAL_ENGINEERING",
+        "source": "AI",
+        "weight": 0,
+        "description": "The invoice includes a pretext about an account being frozen during an audit to justify changing the bank account. (Invoice says: \"NOTICE: our Absa account is frozen during an audit. Pay the account below.\")",
+        "citations": []
+      },
+      {
+        "type": "SOCIAL_ENGINEERING",
+        "source": "AI",
+        "weight": 0,
+        "description": "The invoice explicitly instructs not to telephone the office and to reply by email only, discouraging independent verification. (Invoice says: \"Please do not phone our office about this change; reply by email only.\")",
+        "citations": []
+      }
+    ],
+    "next_steps": [
+      "Keep the payment on hold. Finance must confirm the new bank account by phone AND email, using the contact details in the original onboarding records (never those on the invoice), and then mark the supplier verified (POL-001)."
+    ]
+  },
+  "E03": {
+    "summary": "Invoice MC-1003 from Metro Cleaning Services CC for R18,400.00 has passed all verification checks. Bank account ****7733 and account holder name match master records, the invoice domain matches the supplier record, and the amount falls within the expected R10,000-R20,000 range. All line items correctly match the active contract rates under contract MC-2025-004.",
+    "recommendation": "No further checks are required; the payment can go through normal approval.",
+    "recommended_action": "APPROVE_PAYMENT",
+    "score": 0,
+    "level": "LOW",
+    "evidence": [
+      {
+        "type": "CONFIRMED_MATCH",
+        "source": "RULE",
+        "weight": 0,
+        "description": "Bank account ****7733 matches the verified account on file for Metro Cleaning Services.",
+        "citations": []
+      },
+      {
+        "type": "CONFIRMED_MATCH",
+        "source": "RULE",
+        "weight": 0,
+        "description": "Bank account holder \"Metro Cleaning Services CC\" matches the supplier name.",
+        "citations": []
+      },
+      {
+        "type": "CONFIRMED_MATCH",
+        "source": "RULE",
+        "weight": 0,
+        "description": "Invoice contact domain \"metrocleaning.co.za\" matches the supplier record.",
+        "citations": []
+      },
+      {
+        "type": "CONFIRMED_MATCH",
+        "source": "RULE",
+        "weight": 0,
+        "description": "Amount R18,400 is within the expected range of R10,000-R20,000.",
+        "citations": []
+      },
+      {
+        "type": "CONFIRMED_MATCH",
+        "source": "CONTRACT",
+        "weight": 0,
+        "description": "'Monthly cleaning service - October 2026 (Mon-Fri, offices 1-4)' at R12,500.00 matches the contract rate of R12,500.00 (MC-2025-004, 4 Rates).",
+        "citations": [
+          {
+            "source": "MC-2025-004_Metro_Cleaning_Services_Agreement.pdf",
+            "page": 1,
+            "section": "4 Rates"
+          }
+        ]
+      },
+      {
+        "type": "CONFIRMED_MATCH",
+        "source": "CONTRACT",
+        "weight": 0,
+        "description": "'Deep clean - boardroom and executive offices' at R3,500.00 matches the contract rate of R3,500.00 (MC-2025-004, 4 Rates).",
+        "citations": [
+          {
+            "source": "MC-2025-004_Metro_Cleaning_Services_Agreement.pdf",
+            "page": 1,
+            "section": "4 Rates"
+          }
+        ]
+      }
+    ],
+    "next_steps": [
+      "No further checks are required; the payment can go through normal approval."
+    ]
+  },
+  "E15": {
+    "summary": "Invoice MC-0831 from Metro Cleaning Services CC for R18,400.00 has been reviewed and found to be fully compliant with all checks. Bank account details and holders match the verified supplier record, and the line item amounts for regular monthly cleaning and deep clean match contract MC-2025-004. Furthermore, the invoice contact domain matches the supplier record and the total amount falls within the expected range of R10,000 to R20,000.",
+    "recommendation": "No further checks are required; the payment can go through normal approval.",
+    "recommended_action": "APPROVE_PAYMENT",
+    "score": 0,
+    "level": "LOW",
+    "evidence": [
+      {
+        "type": "CONFIRMED_MATCH",
+        "source": "RULE",
+        "weight": 0,
+        "description": "Bank account ****7733 matches the verified account on file for Metro Cleaning Services.",
+        "citations": []
+      },
+      {
+        "type": "CONFIRMED_MATCH",
+        "source": "RULE",
+        "weight": 0,
+        "description": "Bank account holder \"Metro Cleaning Services CC\" matches the supplier name.",
+        "citations": []
+      },
+      {
+        "type": "CONFIRMED_MATCH",
+        "source": "RULE",
+        "weight": 0,
+        "description": "Invoice contact domain \"metrocleaning.co.za\" matches the supplier record.",
+        "citations": []
+      },
+      {
+        "type": "CONFIRMED_MATCH",
+        "source": "RULE",
+        "weight": 0,
+        "description": "Amount R18,400 is within the expected range of R10,000-R20,000.",
+        "citations": []
+      },
+      {
+        "type": "CONFIRMED_MATCH",
+        "source": "CONTRACT",
+        "weight": 0,
+        "description": "'Monthly cleaning service - August 2026 (Mon-Fri, offices 1-4)' at R12,500.00 matches the contract rate of R12,500.00 (MC-2025-004, 4 Rates).",
+        "citations": [
+          {
+            "source": "MC-2025-004_Metro_Cleaning_Services_Agreement.pdf",
+            "page": 1,
+            "section": "4 Rates"
+          }
+        ]
+      },
+      {
+        "type": "CONFIRMED_MATCH",
+        "source": "CONTRACT",
+        "weight": 0,
+        "description": "'Deep clean - boardroom and executive offices' at R3,500.00 matches the contract rate of R3,500.00 (MC-2025-004, 4 Rates).",
+        "citations": [
+          {
+            "source": "MC-2025-004_Metro_Cleaning_Services_Agreement.pdf",
+            "page": 1,
+            "section": "4 Rates"
+          }
+        ]
+      }
+    ],
+    "next_steps": [
+      "No further checks are required; the payment can go through normal approval."
+    ]
+  },
+  "E04": {
+    "summary": "The invoice DPC-3301 from Digital Print Co (Pty) Ltd for R11,270.00 has been verified against active contract agreement DPC-2025-009, with all line item prices matching the agreed contract rates. The bank account ****2190, account holder, and contact domain all match verified supplier records on file. The AI document review confirmed the invoice is clean and accurate.",
+    "recommendation": "No further checks are required; the payment can go through normal approval.",
+    "recommended_action": "APPROVE_PAYMENT",
+    "score": 0,
+    "level": "LOW",
+    "evidence": [
+      {
+        "type": "CONFIRMED_MATCH",
+        "source": "RULE",
+        "weight": 0,
+        "description": "Bank account ****2190 matches the verified account on file for Digital Print Co.",
+        "citations": []
+      },
+      {
+        "type": "CONFIRMED_MATCH",
+        "source": "RULE",
+        "weight": 0,
+        "description": "Bank account holder \"Digital Print Co (Pty) Ltd\" matches the supplier name.",
+        "citations": []
+      },
+      {
+        "type": "CONFIRMED_MATCH",
+        "source": "RULE",
+        "weight": 0,
+        "description": "Invoice contact domain \"digitalprint.co.za\" matches the supplier record.",
+        "citations": []
+      },
+      {
+        "type": "CONFIRMED_MATCH",
+        "source": "CONTRACT",
+        "weight": 0,
+        "description": "'Conference banners - pull-up, 850x2000mm' at R1,850.00 matches the contract rate of R1,850.00 (DPC-2025-009, 4 Rates).",
+        "citations": [
+          {
+            "source": "DPC-2025-009_Digital_Print_Co_Rate_Card_Agreement.pdf",
+            "page": 1,
+            "section": "4 Rates"
+          }
+        ]
+      },
+      {
+        "type": "CONFIRMED_MATCH",
+        "source": "CONTRACT",
+        "weight": 0,
+        "description": "'Business cards - 350gsm matt laminate (per 500)' at R480.00 matches the contract rate of R480.00 (DPC-2025-009, 4 Rates).",
+        "citations": [
+          {
+            "source": "DPC-2025-009_Digital_Print_Co_Rate_Card_Agreement.pdf",
+            "page": 1,
+            "section": "4 Rates"
+          }
+        ]
+      }
+    ],
+    "next_steps": [
+      "No further checks are required; the payment can go through normal approval."
+    ]
+  },
+  "E16": {
+    "summary": "Invoice MC-0801B from Metro Cleaning Services CC for R18,400.00 was flagged as a possible duplicate of invoice INV-1049, which has the same supplier, amount, and date, violating FIN-POL-01_Procurement_and_Payments_Policy_Manual.pdf, section 9. Additionally, the invoice presents a contract deviation, billing R16,000.00 per unit against the agreed contract rate of R12,500.00 under MC-2025-004, section 4, exceeding the 2% tolerance limit. Background checks confirmed that the bank account matches the verified file and the AI review verified the context.",
+    "recommendation": "Query the price with the supplier; the contract owner must approve any price above the contract rate in writing before payment (policy manual 10.2). Check that the earlier invoice named in the evidence has not already been paid.",
+    "recommended_action": "REQUEST_VERIFICATION",
+    "score": 55,
+    "level": "MEDIUM",
+    "evidence": [
+      {
+        "type": "CONFIRMED_MATCH",
+        "source": "RULE",
+        "weight": 0,
+        "description": "Bank account ****7733 matches the verified account on file for Metro Cleaning Services.",
+        "citations": []
+      },
+      {
+        "type": "CONFIRMED_MATCH",
+        "source": "RULE",
+        "weight": 0,
+        "description": "Bank account holder \"Metro Cleaning Services CC\" matches the supplier name.",
+        "citations": []
+      },
+      {
+        "type": "CONFIRMED_MATCH",
+        "source": "RULE",
+        "weight": 0,
+        "description": "Invoice contact domain \"metrocleaning.co.za\" matches the supplier record.",
+        "citations": []
+      },
+      {
+        "type": "CONFIRMED_MATCH",
+        "source": "RULE",
+        "weight": 0,
+        "description": "Amount R18,400 is within the expected range of R10,000-R20,000.",
+        "citations": []
+      },
+      {
+        "type": "DUPLICATE_INVOICE",
+        "source": "RULE",
+        "weight": 35,
+        "description": "Possible duplicate of invoice INV-1049: same supplier, same amount (R18,400) on the same date (2026-08-01).",
+        "citations": [
+          {
+            "source": "FIN-POL-01_Procurement_and_Payments_Policy_Manual.pdf",
+            "page": 6,
+            "section": "9 Duplicate Invoices"
+          }
+        ]
+      },
+      {
+        "type": "CONTRACT_DEVIATION",
+        "source": "CONTRACT",
+        "weight": 20,
+        "description": "'Cleaning services rendered' billed at R16,000.00 per unit against the contract rate of R12,500.00 (MC-2025-004, 4 Rates): 28.0% above the agreed price (tolerance 2%, policy manual 10.1).",
+        "citations": [
+          {
+            "source": "MC-2025-004_Metro_Cleaning_Services_Agreement.pdf",
+            "page": 1,
+            "section": "4 Rates"
+          }
+        ]
+      }
+    ],
+    "next_steps": [
+      "Query the price with the supplier; the contract owner must approve any price above the contract rate in writing before payment (policy manual 10.2).",
+      "Check that the earlier invoice named in the evidence has not already been paid."
+    ]
+  },
+  "E05": {
+    "summary": "An investigation of invoice ABC-5102 from ABC Office Solutions (Pty) Ltd for R39,215.00 found it to be a clean, low-risk transaction. All line items, including ergonomic office chairs and delivery, matched contract rates under contract ABC-2026-017. Furthermore, bank account and contact domain verifications passed successfully with no document anomalies.",
+    "recommendation": "No further checks are required; the payment can go through normal approval.",
+    "recommended_action": "APPROVE_PAYMENT",
+    "score": 0,
+    "level": "LOW",
+    "evidence": [
+      {
+        "type": "CONFIRMED_MATCH",
+        "source": "RULE",
+        "weight": 0,
+        "description": "Bank account ****4821 matches the verified account on file for ABC Office Solutions.",
+        "citations": []
+      },
+      {
+        "type": "CONFIRMED_MATCH",
+        "source": "RULE",
+        "weight": 0,
+        "description": "Bank account holder \"ABC Office Solutions (Pty) Ltd\" matches the supplier name.",
+        "citations": []
+      },
+      {
+        "type": "CONFIRMED_MATCH",
+        "source": "RULE",
+        "weight": 0,
+        "description": "Invoice contact domain \"abcoffice.co.za\" matches the supplier record.",
+        "citations": []
+      },
+      {
+        "type": "CONFIRMED_MATCH",
+        "source": "RULE",
+        "weight": 0,
+        "description": "Amount R39,215 is within the expected range of R15,000-R40,000.",
+        "citations": []
+      },
+      {
+        "type": "CONFIRMED_MATCH",
+        "source": "CONTRACT",
+        "weight": 0,
+        "description": "'Ergonomic office chairs - Model EX500' at R3,950.00 matches the contract rate of R3,950.00 (ABC-2026-017, 4 Rates).",
+        "citations": [
+          {
+            "source": "ABC-2026-017_ABC_Office_Solutions_Supply_Agreement.pdf",
+            "page": 1,
+            "section": "4 Rates"
+          }
+        ]
+      },
+      {
+        "type": "CONFIRMED_MATCH",
+        "source": "CONTRACT",
+        "weight": 0,
+        "description": "'Delivery and installation' at R2,500.00 matches the contract rate of R2,500.00 (ABC-2026-017, 4 Rates).",
+        "citations": [
+          {
+            "source": "ABC-2026-017_ABC_Office_Solutions_Supply_Agreement.pdf",
+            "page": 1,
+            "section": "4 Rates"
+          }
+        ]
+      }
+    ],
+    "next_steps": [
+      "No further checks are required; the payment can go through normal approval."
+    ]
+  },
+  "E17": {
+    "summary": "Bright Future Consulting (Pty) Ltd has submitted an unverified new supplier invoice for R43,700.00. The assessment is rule-based and triggered two flags under FIN-POL-01 (p.2): the supplier is not verified and the bank account holder 'T Ndlovu' does not match the corporate supplier name. Deep dive checks confirm there is no prior payment history or shared bank accounts to corroborate fraud, but the mismatch requires strict handling.",
+    "recommendation": "Complete new-supplier onboarding: confirm the company, its bank account and its contacts by phone and email using an independent source such as the company register, never the invoice. Confirm with the supplier, through its known contacts, that the account holder and contact email on the invoice are genuinely theirs.",
+    "recommended_action": "REQUEST_VERIFICATION",
+    "score": 40,
+    "level": "MEDIUM",
+    "evidence": [
+      {
+        "type": "SUPPLIER_NOT_VERIFIED",
+        "source": "RULE",
+        "weight": 15,
+        "description": "Bright Future Consulting (Pty) Ltd is not a verified supplier, so there is no confirmed banking record to compare against. Treat as new-supplier onboarding.",
+        "citations": [
+          {
+            "source": "FIN-POL-01_Procurement_and_Payments_Policy_Manual.pdf",
+            "page": 2,
+            "section": "4 Supplier Onboarding and Master Data"
+          }
+        ]
+      },
+      {
+        "type": "ACCOUNT_HOLDER_MISMATCH",
+        "source": "RULE",
+        "weight": 25,
+        "description": "Bank account holder \"T Ndlovu\" does not match the supplier name \"Bright Future Consulting (Pty) Ltd\". Payments to a differently named account are a common redirection tactic.",
+        "citations": [
+          {
+            "source": "FIN-POL-01_Procurement_and_Payments_Policy_Manual.pdf",
+            "page": 2,
+            "section": "4 Supplier Onboarding and Master Data"
+          }
+        ]
+      }
+    ],
+    "next_steps": [
+      "Complete new-supplier onboarding: confirm the company, its bank account and its contacts by phone and email using an independent source such as the company register, never the invoice.",
+      "Confirm with the supplier, through its known contacts, that the account holder and contact email on the invoice are genuinely theirs."
+    ]
+  },
+  "E06": {
+    "summary": "An invoice for R15,870.00 from ABC Office Solutions (Pty) Ltd was reviewed and found to match contract ABC-2026-017 for toner cartridges. Although the payment is marked urgent with a justification note about audit week, which policy POL-004 treats as a signal requiring extra scrutiny (FIN-POL-01_Procurement_and_Payments_Policy_Manual.pdf, p.5), all checks passed. Specifically, bank account ****4821 and the email domain match verified records on file.",
+    "recommendation": "No further checks are required; the payment can go through normal approval.",
+    "recommended_action": "APPROVE_PAYMENT",
+    "score": 10,
+    "level": "LOW",
+    "evidence": [
+      {
+        "type": "CONFIRMED_MATCH",
+        "source": "RULE",
+        "weight": 0,
+        "description": "Bank account ****4821 matches the verified account on file for ABC Office Solutions.",
+        "citations": []
+      },
+      {
+        "type": "CONFIRMED_MATCH",
+        "source": "RULE",
+        "weight": 0,
+        "description": "Bank account holder \"ABC Office Solutions (Pty) Ltd\" matches the supplier name.",
+        "citations": []
+      },
+      {
+        "type": "CONFIRMED_MATCH",
+        "source": "RULE",
+        "weight": 0,
+        "description": "Invoice contact domain \"abcoffice.co.za\" matches the supplier record.",
+        "citations": []
+      },
+      {
+        "type": "CONFIRMED_MATCH",
+        "source": "RULE",
+        "weight": 0,
+        "description": "Amount R15,870 is within the expected range of R15,000-R40,000.",
+        "citations": []
+      },
+      {
+        "type": "URGENCY_INDICATOR",
+        "source": "RULE",
+        "weight": 10,
+        "description": "Payment is marked IMMEDIATE/urgent. POL-004 treats urgency as a social-engineering signal requiring extra scrutiny.",
+        "citations": [
+          {
+            "source": "FIN-POL-01_Procurement_and_Payments_Policy_Manual.pdf",
+            "page": 5,
+            "section": "8 Urgent Payment Requests (POL-004)"
+          }
+        ]
+      },
+      {
+        "type": "CONFIRMED_MATCH",
+        "source": "CONTRACT",
+        "weight": 0,
+        "description": "'Toner cartridges - HP 58A' at R1,150.00 matches the contract rate of R1,150.00 (ABC-2026-017, 4 Rates).",
+        "citations": [
+          {
+            "source": "ABC-2026-017_ABC_Office_Solutions_Supply_Agreement.pdf",
+            "page": 1,
+            "section": "4 Rates"
+          }
+        ]
+      },
+      {
+        "type": "SOCIAL_ENGINEERING",
+        "source": "AI",
+        "weight": 0,
+        "description": "The invoice includes an urgency priority label and a justification note about audit week, which aligns with social-engineering pressure tactics. (Invoice says: \"Priority: URGENT\")",
+        "citations": []
+      }
+    ],
+    "next_steps": [
+      "No further checks are required; the payment can go through normal approval."
+    ]
+  }
+}

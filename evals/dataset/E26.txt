@@ -1,0 +1,22 @@
+Rapid Courier Co
+accounts@rapidcourier.co.za
+
+TAX INVOICE RC-0045
+Invoice date: 2026-09-16
+Payment due: 2026-10-16
+Priority: Normal
+
+Bill to: TrustCorp Holdings Ltd, Rosebank
+
+Items:
+  - Same-day courier - September 2026: 1 x R 9,800.00 = R 9,800.00
+
+Subtotal R 9,800.00
+VAT 15% R 1,470.00
+Amount due R 11,270.00
+
+Remit to: Standard Bank
+Account name: Rapid Courier Co
+Account no: 0998 1234 5677 33
+
+

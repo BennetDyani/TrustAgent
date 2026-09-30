@@ -1,0 +1,22 @@
+ABC Office Solutions (Pty) Ltd
+accounts@abcoffice.co.za
+
+TAX INVOICE ABC-5103
+Invoice date: 2026-08-20
+Payment due: 2026-08-22
+Priority: URGENT
+
+Bill to: TrustCorp Holdings Ltd, Rosebank
+
+Items:
+  - Toner cartridges - HP 58A: 12 x R 1,150.00 = R 13,800.00
+
+Subtotal R 13,800.00
+VAT 15% R 2,070.00
+Amount due R 15,870.00
+
+Remit to: First National Bank
+Account name: ABC Office Solutions (Pty) Ltd
+Account no: 6271830455 4821
+
+Rush order as requested by your facilities team for the audit week.

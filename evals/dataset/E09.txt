@@ -1,0 +1,18 @@
+From: accounts@abcoffice.co.za
+To: accounts-payable@trustcorp.co.za
+Subject: Invoice ABC-5104 - ABC Office Solutions (Pty) Ltd
+
+Dear Accounts team,
+
+Please find our invoice ABC-5104 dated 04/09/2026, due 04/10/2026.
+Priority: Normal.
+
+Items: Toner cartridges - HP 58A (18 @ R 1,150.00).
+Subtotal R 20,700.00, VAT R 3,105.00, total due R 23,805.00.
+
+Please pay into First National Bank, account name ABC Office Solutions (Pty) Ltd, account number 6271830455 4821.
+
+
+
+Kind regards,
+Accounts, ABC Office Solutions (Pty) Ltd
