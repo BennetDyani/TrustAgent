@@ -1,0 +1,22 @@
+Sizwe Security Services CC
+finance@sizwesecurity.co.za
+
+TAX INVOICE SZ-2026-044
+Invoice date: 2026-09-08
+Payment due: 2026-10-08
+Priority: Normal
+
+Bill to: TrustCorp Holdings Ltd, Rosebank
+
+Items:
+  - Guarding services - Q3 2026 (3 sites): 1 x R 104,350.00 = R 104,350.00
+
+Subtotal R 104,350.00
+VAT 15% R 15,652.50
+Amount due R 120,002.50
+
+Remit to: Standard Bank
+Account name: Sizwe Security Services CC
+Account no: 0228374651 3309
+
+

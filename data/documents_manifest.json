@@ -1,0 +1,57 @@
+[
+  {
+    "file": "contracts/ABC-2026-017_ABC_Office_Solutions_Supply_Agreement.pdf",
+    "document_id": "ABC-2026-017",
+    "doc_type": "contract",
+    "supplier_id": "SUP-001",
+    "contract_id": "ABC-2026-017",
+    "title": "Supply Agreement - Office Consumables and Furniture",
+    "effective_from": "2026-02-15",
+    "effective_to": "2027-02-14",
+    "pages": 2
+  },
+  {
+    "file": "contracts/MC-2025-004_Metro_Cleaning_Services_Agreement.pdf",
+    "document_id": "MC-2025-004",
+    "doc_type": "contract",
+    "supplier_id": "SUP-002",
+    "contract_id": "MC-2025-004",
+    "title": "Cleaning Services Agreement",
+    "effective_from": "2025-04-01",
+    "effective_to": "2027-03-31",
+    "pages": 2
+  },
+  {
+    "file": "contracts/MC-2024-001_Metro_Cleaning_Services_Agreement_EXPIRED.pdf",
+    "document_id": "MC-2024-001",
+    "doc_type": "contract",
+    "supplier_id": "SUP-002",
+    "contract_id": "MC-2024-001",
+    "title": "Cleaning Services Agreement (previous term)",
+    "effective_from": "2024-04-01",
+    "effective_to": "2025-03-31",
+    "pages": 2
+  },
+  {
+    "file": "contracts/DPC-2025-009_Digital_Print_Co_Rate_Card_Agreement.pdf",
+    "document_id": "DPC-2025-009",
+    "doc_type": "contract",
+    "supplier_id": "SUP-003",
+    "contract_id": "DPC-2025-009",
+    "title": "Print Services Rate Card Agreement",
+    "effective_from": "2025-11-10",
+    "effective_to": "2026-11-09",
+    "pages": 2
+  },
+  {
+    "file": "policies/FIN-POL-01_Procurement_and_Payments_Policy_Manual.pdf",
+    "document_id": "FIN-POL-01",
+    "doc_type": "policy",
+    "supplier_id": null,
+    "contract_id": null,
+    "title": "Procurement and Supplier Payments Policy Manual",
+    "effective_from": "2026-06-01",
+    "effective_to": null,
+    "pages": 12
+  }
+]
