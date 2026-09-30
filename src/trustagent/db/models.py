@@ -131,6 +131,9 @@ class InvestigationRow(Base):
     recommended_action: Mapped[str | None] = mapped_column(String(30))
     decision: Mapped[str | None] = mapped_column(String(30))
     ai_review_available: Mapped[bool | None] = mapped_column(Boolean)
+    deep_dive_summary: Mapped[str | None] = mapped_column(Text)
+    # One entry per model call in the current run: step, model, input/output tokens (cost accounting).
+    llm_usage: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list, server_default="[]")
     approvals: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list)
     verification: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

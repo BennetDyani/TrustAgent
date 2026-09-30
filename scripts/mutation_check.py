@@ -75,9 +75,9 @@ M = [
     ),
     (
         "src/trustagent/workflow/verification.py",
-        'if evidence.phone_source != "onboarding_record" or evidence.email_source != "onboarding_record":',
-        'if evidence.phone_source != "onboarding_record":',
-        "email must come from onboarding record",
+        "if evidence.phone_source not in TRUSTED_SOURCES or evidence.email_source not in TRUSTED_SOURCES:",
+        "if evidence.phone_source not in TRUSTED_SOURCES:",
+        "email must come from a trusted source",
     ),
 ]
 missed = 0

@@ -6,8 +6,10 @@ only the qualitative types rules can't see.
 """
 
 from collections.abc import Iterable
+from decimal import Decimal
 from typing import Any
 
+from trustagent.config import get_settings
 from trustagent.domain import Action, Caution, IndicatorSource, RiskIndicator, RiskLevel, Severity
 
 # Indicator types the AI may contribute. Everything else is decided by rules
@@ -91,6 +93,39 @@ def fallback_recommendation(
             "Re-run the investigation once the AI model is available for a full assessment."
         )
     return action, " ".join(parts)
+
+
+def required_next_steps(findings: Iterable[str], supplier_verified: bool, amount: Decimal) -> list[str]:
+    """What the reviewer must do next, decided by code from the findings (ADR-040).
+
+    The report writer may phrase these but not add to them. In the live run the model copied the
+    bank-change instruction into cases with no bank change.
+    """
+    findings = set(findings)
+    steps: list[str] = []
+    if "BANK_DETAILS_CHANGED" in findings:
+        steps.append(
+            "Keep the payment on hold. Finance must confirm the new bank account by phone AND email, using the "
+            "contact details in the original onboarding records (never those on the invoice), and then mark the "
+            "supplier verified (POL-001)."
+        )
+    if "SUPPLIER_NOT_VERIFIED" in findings or not supplier_verified:
+        steps.append(
+            "Complete new-supplier onboarding: confirm the company, its bank account and its contacts by phone and "
+            "email using an independent source such as the company register, never the invoice."
+        )
+    if findings & {"ACCOUNT_HOLDER_MISMATCH", "EMAIL_DOMAIN_MISMATCH", "PERSONAL_EMAIL_DOMAIN"}:
+        steps.append(
+            "Confirm with the supplier, through its known contacts, that the account holder and contact email on "
+            "the invoice are genuinely theirs."
+        )
+    if "DUPLICATE_INVOICE" in findings:
+        steps.append("Check that the earlier invoice named in the evidence has not already been paid.")
+    if findings & {"UNUSUAL_AMOUNT", "PATTERN_ANOMALY", "THRESHOLD_AVOIDANCE"}:
+        steps.append("Confirm with the requesting department that the goods or services and the amount are expected.")
+    if amount > get_settings().large_transaction_threshold:
+        steps.append("POL-002: approval needs both a Finance Manager and a Department Head, two different people.")
+    return steps or ["No further checks are required; the payment can go through normal approval."]
 
 
 def _field(obs: Any, name: str) -> Any:

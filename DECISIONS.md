@@ -305,6 +305,8 @@ verify the new account **by email and by phone** before the supplier is marked v
   field (`onboarding_record | invoice | other`), not free text.
 - After a supplier is verified, a case clears only if its invoice account matches the verified record. If the
   supplier confirmed its *old* account, the case stays held.
+- *Amendment (phase 3).* A **brand-new** supplier has no onboarding records, so for them contacts may come from
+  another `independent_source` (e.g. the company register), but **never** from the invoice.
 
 **Trade-off.** More work for finance on every bank change, including genuine ones. That's the point: bank-detail
 changes are the most common BEC loss, and a phone call costs less than a redirected payment. Covered by tests
@@ -319,6 +321,109 @@ and leaves the case `ACTION_REQUIRED`. A new human-only action, **Reject invoice
 fraud or otherwise not payable. It isn't in the model's action list, so the model can't recommend closing a case.
 **Trade-off.** One more button than the brief listed, but "held" and "rejected" are different business outcomes,
 and conflating them was a latent bug.
+
+---
+
+## Phase 3: The LangGraph investigation
+
+### ADR-031: The deep dive is a hand-built, bounded ReAct loop with read-only, scoped tools
+
+**Context.** `langgraph.prebuilt.create_react_agent` is **deprecated in LangGraph 1.x** (checked in the installed
+source). Its replacement, `create_agent`, lives in the separate `langchain` package.
+**Decision.** A small explicit subgraph: `agent` (model with tools bound) → `ToolNode` → `agent` … ending when the
+model calls `submit_findings`, a terminal "tool" whose arguments are the structured result.
+- **Least privilege.** Three tools: supplier payment history, similar invoices (same supplier, same amount
+  elsewhere, *same bank account used by another supplier*), and other open cases. They take **no arguments**:
+  they're bound to this investigation, so the model can't point them at another supplier.
+- **Read only.** Each tool runs in a `SET TRANSACTION READ ONLY` transaction, with a test proving writes fail.
+  There is no payment tool anywhere.
+- **Bounded.** `recursion_limit = 8` (config). Hitting it isn't an error: the investigation continues without
+  deep-dive findings and says so.
+- **Whitelisted.** Deep-dive observations go through the same filter as the AI review, tagged "Deep dive:".
+
+**Trade-off.** About 60 lines we own rather than one library call, with no new dependency, no deprecated API, and
+a loop you can draw on a whiteboard.
+
+### ADR-032: Crash safety needs `durability="sync"`, and a correct "is it finished?" check
+
+**Found by the recovery test.** A run abandoned mid-way couldn't be resumed. Two causes:
+1. LangGraph's default `durability="async"` saves each checkpoint *in the background* while the next step
+   starts, so a crash can lose it. We stream with **`durability="sync"`**: each step is saved before the next
+   begins, for a few milliseconds per step.
+2. After a crash, `StateSnapshot.next` came back **empty although the run was unfinished**. The step that had just
+   completed stored its output as *pending writes*, and `next` only lists tasks that haven't written yet.
+   `run_finished()` checks `not state.next and not state.tasks`.
+
+`service.recover(id)` resumes an `IN_PROGRESS` run from its last checkpoint. If there's none, it marks the case
+`FAILED` so it can be re-run.
+
+### ADR-033: One service layer owns the state guards
+
+- **Atomic start:** `UPDATE … SET status='IN_PROGRESS' WHERE status='PENDING' RETURNING run_number`. A test fires
+  two starts at the same moment from two threads: exactly one runs.
+- **Serialised decisions:** every resume takes a per-case Postgres advisory lock (`pg_advisory_xact_lock`), and
+  `apply_human_action` locks the case row (`FOR UPDATE`). Two approvers clicking at once can't both resume the
+  same checkpoint or both record "the second approval".
+- **Unexpected exceptions** mark the case `FAILED` with an audit entry and an `error` event. Model failures
+  never get this far, because they degrade inside the nodes.
+- **Re-run** starts a new thread (`{id}:run-{n+1}`), clears findings and approvals, keeps the audit log and
+  earlier evidence rows, and **deletes the old thread's checkpoints** so a stale run can never be resumed.
+
+### ADR-034: Identity comes from one place
+
+`workflow/identity.py` maps an "acting as" key to a person and role on the server. Nothing trusts a name or role
+sent by a client. The resume payload is built by the service from that server-side identity. In production this
+module would read verified SSO/OIDC claims instead of a demo table.
+
+### ADR-035: The report writer never sees the invoice; the reviewer sees only the redacted copy
+
+The AI review is the only step that reads document text: the redacted copy, inside delimiters, with instructions
+to report embedded instructions as `SOCIAL_ENGINEERING`. The report writer gets structured evidence, the score and
+the minimum action, never the document. Injection has one small surface, and even there it can only *add*
+whitelisted observations. The schema restricts observation types, and code filters them again (defence in depth).
+
+### ADR-036: Graph state holds only JSON-safe values
+
+Dicts, lists and strings; no Pydantic objects. Checkpoints don't depend on how classes serialise, so a case paused
+for days still resumes after a deploy that renamed a class.
+
+### ADR-037: Client-side rate limiting, per provider
+
+**Found in the live run.** The Gemini free tier allows **15 requests per minute** per model. An investigation makes
+3–7 calls (review, deep-dive turns, report), so the fourth invoice hit a 429. Graceful degradation handled it
+correctly: rule-only score, HOLD, and the "AI review was unavailable" note. But pacing beats failing, so
+`langchain-core`'s `InMemoryRateLimiter` is attached to every model, one shared instance per provider, set by
+`LLM_REQUESTS_PER_MINUTE` (Gemini 14, Groq 25).
+**Limit.** Per process. Several API workers would need a shared limiter (Redis), or a paid tier.
+
+### ADR-038: Token usage is recorded per call
+
+`invoke_structured` uses `with_structured_output(include_raw=True)`, so each call returns the parsed object *and*
+the raw message's `usage_metadata`. Tokens per step are stored on the case (`investigations.llm_usage`) for cost
+per investigation in the evaluation.
+
+### ADR-039: Retrieval is a pluggable dependency; phase 3 uses the policy table
+
+`retrieve_context` calls `Deps.context_retriever`. In phase 3 it returns POL-001..004 with citations. Phase 4 swaps
+in hybrid RAG over contracts and the policy manual without touching the graph.
+
+### ADR-040: Code decides the reviewer's next steps; the model only phrases them
+
+**Found in the live run.** The report writer copied the prompt's bank-change instruction ("confirm the *new account*
+by phone and email") into INV-1051/1052/1053, which have **no bank change**. That's an unfaithful report, and
+exactly what the evaluation's judge should flag.
+**Decision.** `required_next_steps(findings, supplier_verified, amount)` is a pure, tested function:
+- bank change → phone AND email verification from onboarding records;
+- new supplier → onboarding checks from an independent source;
+- mismatched holder or email → confirm with known contacts;
+- duplicate → check the earlier invoice wasn't paid;
+- unusual amount → confirm with the department;
+- over R100k → POL-002 dual approval.
+
+The report prompt receives them as **REQUIRED NEXT STEPS** and may only phrase them. The bank-change sentence was
+removed from the prompt. The AI-review prompt was also tightened, because it sometimes re-described rule facts
+(e.g. "re-issued invoice, matches the duplicate finding") as `DOCUMENT_ANOMALY`, double-counting 10 points.
+**Principle.** The same as the score: anything decidable, including *process*, is decided in code.
 
 ---
 
@@ -337,3 +442,16 @@ and conflating them was a latent bug.
 - **Phase 2: a notebook found a behaviour bug the unit tests couldn't.** Running all 11 invoices through one
   database showed the original INV-1049 flagged as a duplicate of its later re-issue (ADR-026). Each unit test
   had only one invoice pair in a fixed order.
+- **Phase 3: `durability="async"` and pending writes.** See ADR-032. The recovery test failed until both were
+  understood. "Test the crash path" paid for itself.
+- **Phase 3: a fake model that reused one message object.** LangGraph's `add_messages` reducer de-duplicates by
+  message id, so a scripted fake that returned the *same* `AIMessage` each turn silently replaced history instead
+  of appending, and the loop ended early. The fix was in the test fake (a fresh copy per turn). Worth knowing when
+  replaying recorded messages.
+- **Phase 3: `interrupt()` re-runs its node.** A probe showed the paused node running 4 times for 2 pauses. That's
+  why `human_decision` has no side effects and all effects live in `execute_action`.
+- **Phase 3: test isolation.** Graph tests need committed data. They now truncate before *and* after, because
+  rows left behind broke the older rollback-based tests that expect an empty database.
+- **Honest limit: `TRUNCATE` bypasses the append-only trigger.** The trigger is row-level (UPDATE/DELETE). The
+  tests rely on `TRUNCATE` to reset. In production the application's database role would be granted only
+  `INSERT, SELECT` on `audit_log`, with no `UPDATE`, `DELETE` or `TRUNCATE`.

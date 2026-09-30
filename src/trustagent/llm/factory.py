@@ -7,9 +7,11 @@ surfaces as ``LLMUnavailable`` so callers have exactly one failure to handle
 """
 
 import logging
+from functools import cache
 from typing import Literal
 
 from langchain_core.language_models import BaseChatModel
+from langchain_core.rate_limiters import InMemoryRateLimiter
 from langchain_core.runnables import Runnable
 from pydantic import BaseModel
 
@@ -50,6 +52,12 @@ def _key(settings: Settings, provider: Provider) -> str:
     return secret.get_secret_value()
 
 
+@cache
+def _rate_limiter(provider: Provider, per_minute: float) -> InMemoryRateLimiter:
+    """One limiter per provider, shared by every model instance in this process."""
+    return InMemoryRateLimiter(requests_per_second=per_minute / 60, check_every_n_seconds=0.1)
+
+
 def model_for(role: Role, settings: Settings | None = None) -> tuple[Provider, str]:
     s = settings or get_settings()
     return (s.llm_provider, s.llm_model) if role == "generator" else (s.judge_provider, s.judge_model)
@@ -69,6 +77,8 @@ def get_chat_model(
     model = model or default_model
     # `timeout` is accepted by all four classes (as a field name or alias); checked against installed versions.
     common = {"temperature": s.llm_temperature, "max_retries": s.llm_max_retries, "timeout": s.llm_timeout_seconds}
+    if per_minute := s.llm_requests_per_minute.get(provider):
+        common["rate_limiter"] = _rate_limiter(provider, per_minute)
 
     # Imports are local so a missing optional provider package only matters if it is selected.
     if provider == "gemini":
@@ -93,7 +103,7 @@ def get_chat_model(
     raise ValueError(f"Unknown provider: {provider}")
 
 
-def structured(llm: BaseChatModel, schema: type[BaseModel]) -> Runnable:
+def structured(llm: BaseChatModel, schema: type[BaseModel], *, include_raw: bool = False) -> Runnable:
     """``llm.with_structured_output(schema)`` using each provider's most reliable method.
 
     Gemini and Groq use native JSON-schema decoding (Groq in strict mode, which
@@ -101,7 +111,7 @@ def structured(llm: BaseChatModel, schema: type[BaseModel]) -> Runnable:
     """
     name = type(llm).__name__
     if name == "ChatGoogleGenerativeAI":
-        return llm.with_structured_output(schema, method="json_schema")
+        return llm.with_structured_output(schema, method="json_schema", include_raw=include_raw)
     if name == "ChatGroq":
-        return llm.with_structured_output(schema, method="json_schema", strict=True)
-    return llm.with_structured_output(schema)
+        return llm.with_structured_output(schema, method="json_schema", strict=True, include_raw=include_raw)
+    return llm.with_structured_output(schema, include_raw=include_raw)

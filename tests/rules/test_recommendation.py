@@ -120,3 +120,34 @@ def test_fallback_for_bank_change_holds_and_says_why():
     )
     assert action == A.HOLD_PAYMENT
     assert "phone" in text and "email" in text
+
+
+# --- required next steps are decided by code (ADR-040) ------------------------------------------
+
+from decimal import Decimal  # noqa: E402
+
+from trustagent.rules.recommendation import required_next_steps  # noqa: E402
+
+
+def test_bank_change_next_step_is_phone_and_email_verification():
+    steps = required_next_steps({"BANK_DETAILS_CHANGED"}, supplier_verified=True, amount=Decimal("40000"))
+    assert any("phone AND email" in s and "onboarding records" in s for s in steps)
+
+
+def test_new_supplier_gets_onboarding_not_a_bank_change_step():
+    steps = required_next_steps({"SUPPLIER_NOT_VERIFIED"}, supplier_verified=False, amount=Decimal("40000"))
+    assert any("onboarding" in s.lower() for s in steps)
+    assert not any("new account" in s for s in steps)
+
+
+def test_large_amount_adds_dual_authorisation():
+    steps = required_next_steps(set(), supplier_verified=True, amount=Decimal("100000.01"))
+    assert any("POL-002" in s for s in steps)
+    assert not any("POL-002" in s for s in required_next_steps(set(), True, Decimal("100000")))
+
+
+def test_duplicate_step_and_clean_invoice_step():
+    assert any("already been paid" in s for s in required_next_steps({"DUPLICATE_INVOICE"}, True, Decimal("1")))
+    assert required_next_steps({"CONFIRMED_MATCH"}, True, Decimal("1")) == [
+        "No further checks are required; the payment can go through normal approval."
+    ]

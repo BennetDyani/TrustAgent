@@ -36,6 +36,9 @@ class Settings(BaseSettings):
     llm_temperature: float = 0.0
     llm_timeout_seconds: float = 60.0
     llm_max_retries: int = 3
+    # Client-side pacing per provider, to stay under free-tier quotas instead of hitting 429s.
+    # Gemini free tier: 15 requests/min per model (hit in the phase 3 live run). Per process only.
+    llm_requests_per_minute: dict[str, float] = {"gemini": 14, "groq": 25}
 
     # The LLM-as-judge must use a different provider from the generator.
     judge_provider: Provider = "groq"

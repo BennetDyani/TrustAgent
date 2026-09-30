@@ -66,3 +66,7 @@ def test_case_is_verified_only_when_invoice_account_matches_the_verified_record(
 def test_mismatch_never_clears_the_case():
     # The supplier confirmed their OLD account: the invoice's new account is still unverified.
     assert case_outcome_after_supplier_verified("****9917", "****4821") == CaseVerificationOutcome.BANK_MISMATCH
+
+
+def test_new_supplier_may_be_verified_from_an_independent_source():
+    validate_verification(evidence(phone_source="independent_source", email_source="independent_source"), ANALYST)

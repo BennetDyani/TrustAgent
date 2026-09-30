@@ -33,6 +33,17 @@ class Action(StrEnum):
     HOLD_PAYMENT = "HOLD_PAYMENT"
 
 
+class HumanAction(StrEnum):
+    """What a person can do on a case. The model can only recommend ``Action`` values;
+    REJECT_INVOICE (close as fraud/not payable) is human-only (ADR-030)."""
+
+    APPROVE_PAYMENT = "APPROVE_PAYMENT"
+    REQUEST_VERIFICATION = "REQUEST_VERIFICATION"
+    ESCALATE = "ESCALATE"
+    HOLD_PAYMENT = "HOLD_PAYMENT"
+    REJECT_INVOICE = "REJECT_INVOICE"
+
+
 class Caution(IntEnum):
     """Caution order used by the minimum-action rule. Higher is more cautious."""
 
