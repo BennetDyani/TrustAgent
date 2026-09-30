@@ -90,7 +90,7 @@ def apply_human_action(
             # ADR-030: HOLD keeps the case open, waiting for verification.
             invoice.status = "ON_HOLD"
             _request_verification(case, actor, now)
-            detail = f"Held by {_actor(actor)}. Payment for {invoice.id} is on hold."
+            detail = f"Held by {_actor(actor)}. Payment for invoice {invoice.invoice_number} is on hold."
             if bank_changed:
                 detail += (
                     " The bank account differs from the verified record: finance must confirm the new account by phone"
@@ -141,13 +141,15 @@ def apply_human_action(
                 case.status, case.decision = InvestigationStatus.CLOSED.value, HumanAction.APPROVE_PAYMENT.value
                 # The approved payment joins the supplier's history for future investigations.
                 session.add(TransactionRow(
-                    id=_next_transaction_id(session), supplier_id=case.supplier_id, invoice_id=invoice.id,
+                    id=_next_transaction_id(session), supplier_id=case.supplier_id, invoice_id=invoice.invoice_number,
                     amount=invoice.amount, currency=invoice.currency, bank_account=invoice.bank_account,
-                    date=now.date(), status="COMPLETED", description=(invoice.description or invoice.id)[:500],
+                    date=now.date(), status="COMPLETED",
+                    description=(invoice.description or invoice.invoice_number)[:500],
                 ))  # fmt: skip
                 approvers = " and ".join(_actor(a) for a in outcome.approvals)
                 repo.append_audit(session, case.id, _actor(actor), "Payment approved",
-                                  f"Approved by {approvers}. Payment for {invoice.id} released." + suffix)  # fmt: skip
+                                  f"Approved by {approvers}. Payment for invoice {invoice.invoice_number} released."
+                                  + suffix)  # fmt: skip
                 result = ActionResult(True, "Payment approved and released.", closed=True)
 
     session.flush()

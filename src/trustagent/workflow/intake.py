@@ -10,6 +10,7 @@ import secrets
 from dataclasses import dataclass, field
 from typing import Literal
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from trustagent.config import get_settings
@@ -44,6 +45,10 @@ def new_investigation_id() -> str:
     return f"CASE-{secrets.token_hex(4).upper()}"
 
 
+def new_invoice_id() -> str:
+    return f"DOC-{secrets.token_hex(4).upper()}"
+
+
 def intake_document(
     session: Session, filename: str, content: bytes, submitted_by: str, extractor: Extractor | None = None
 ) -> IntakeResult:
@@ -66,9 +71,6 @@ def _store(session: Session, result: ExtractionResult, filename: str, submitted_
     invoice = result.invoice
     assert invoice is not None
 
-    if session.get(InvoiceRow, invoice.id) is not None:
-        raise IntakeRejected(409, f"Invoice {invoice.id} has already been uploaded.")
-
     # 2. Match the supplier by name; an unknown supplier is registered as UNVERIFIED (onboarding).
     match = find_best_supplier(
         invoice.supplier_name, repo.list_suppliers(session), get_settings().supplier_match_threshold
@@ -89,7 +91,18 @@ def _store(session: Session, result: ExtractionResult, filename: str, submitted_
             )
         )
         session.flush()
-    invoice = invoice.model_copy(update={"supplier_id": supplier_id})
+    # Invoice numbers are unique per supplier, not globally (ADR-045).
+    existing = session.scalar(
+        select(InvoiceRow.id).where(
+            InvoiceRow.supplier_id == supplier_id, InvoiceRow.invoice_number == invoice.invoice_number
+        )
+    )
+    if existing is not None:
+        repo.append_audit(session, None, submitted_by, "Upload rejected: invoice number already on file",
+                          f"{filename}: invoice {invoice.invoice_number} from {supplier_id} "
+                          "was already uploaded.")  # fmt: skip
+        raise IntakeRejected(409, f"Invoice {invoice.invoice_number} from {supplier_id} has already been uploaded.")
+    invoice = invoice.model_copy(update={"id": new_invoice_id(), "supplier_id": supplier_id})
 
     # 3. Store the invoice and open a PENDING case.
     session.add(

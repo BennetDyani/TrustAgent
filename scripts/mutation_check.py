@@ -106,7 +106,9 @@ for path, old, new, name in M:
     p.write_text(src.replace(old, new, 1), encoding="utf-8")
     try:
         r = subprocess.run(
-            ["uv", "run", "pytest", "-q", "-x", "tests/rules", "tests/workflow", "tests/graph"], capture_output=True, text=True
+            ["uv", "run", "pytest", "-q", "-x", "tests/rules", "tests/workflow", "tests/graph"],
+            capture_output=True,
+            text=True,
         )
     finally:
         p.write_text(src, encoding="utf-8")

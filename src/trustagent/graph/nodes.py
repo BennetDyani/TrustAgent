@@ -88,7 +88,8 @@ def make_nodes(deps: Deps) -> dict[str, Callable]:
             ctx = repo.load_check_context(s, case.invoice_id)
             row = s.get(InvoiceRow, case.invoice_id)
             repo.append_audit(s, case.id, "system", f"Investigation run {state['run_number']} started",
-                              f"Invoice {case.invoice_id}, supplier {case.supplier_id}.")  # fmt: skip
+                              f"Invoice {row.invoice_number} ({case.invoice_id}), "
+                              f"supplier {case.supplier_id}.")  # fmt: skip
             out = {
                 "invoice": ctx.invoice.model_dump(mode="json"),
                 "supplier": ctx.supplier.model_dump(mode="json") if ctx.supplier else None,
@@ -97,7 +98,7 @@ def make_nodes(deps: Deps) -> dict[str, Callable]:
                 "invoice_text": row.raw_text or "",
                 "notes": [f"Extraction warning: {w}" for w in row.extraction_warnings or []],
             }
-        _activity("Invoice and supplier loaded", f"{ctx.invoice.id} from {ctx.invoice.supplier_name}")
+        _activity("Invoice and supplier loaded", f"{ctx.invoice.invoice_number} from {ctx.invoice.supplier_name}")
         return out
 
     def rule_checks(state: InvestigationState) -> dict:

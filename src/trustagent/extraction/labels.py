@@ -41,7 +41,7 @@ def _text(value: Any) -> str:
 
 def actual_values(invoice: Invoice) -> dict[str, Any]:
     return {
-        "invoice_number": invoice.id,
+        "invoice_number": invoice.invoice_number,
         "supplier_name": invoice.supplier_name,
         "amount": invoice.amount,
         "currency": invoice.currency,

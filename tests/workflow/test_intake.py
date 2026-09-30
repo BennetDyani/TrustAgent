@@ -19,12 +19,17 @@ def db(db_session):
     return db_session
 
 
+def by_number(db, number: str) -> InvoiceRow | None:
+    return db.scalar(select(InvoiceRow).where(InvoiceRow.invoice_number == number))
+
+
 def test_known_supplier_is_matched_and_a_pending_case_opened(db):
     result = intake_document(db, "inv.md", b"# invoice", "Thandi Nkosi", extractor=lambda _: extracted())
     assert result.supplier_match == "MATCHED_EXISTING" and result.supplier_id == "SUP-002"
     case = db.get(InvestigationRow, result.investigation_id)
-    assert case.status == "PENDING" and case.invoice_id == "INV-1"
-    row = db.get(InvoiceRow, "INV-1")
+    row = by_number(db, "INV-1")
+    assert case.status == "PENDING" and case.invoice_id == row.id == result.invoice.id
+    assert row.id != "INV-1"  # internal id, not the supplier's invoice number
     assert row.bank_account == "****7733" and row.submitted_by == "Thandi Nkosi"
 
 
@@ -43,22 +48,39 @@ def test_stored_text_never_contains_the_full_account_number(db):
     content = (INVOICES / "INV-1052-quickship-logistics.md").read_bytes()
     ex = extracted(supplier_name="QuickShip Logistics", bank_account_number="5501928374**8801**")
     intake_document(db, "INV-1052.md", content, "Thandi Nkosi", extractor=lambda _: ex)
-    stored = db.get(InvoiceRow, "INV-1").raw_text
+    stored = by_number(db, "INV-1").raw_text
     assert "5501928374" not in stored and "****8801" in stored
 
 
-def test_same_invoice_number_twice_is_rejected(db):
+def test_same_invoice_number_from_the_same_supplier_is_rejected_and_audited(db):
     intake_document(db, "a.md", b"# invoice", "Thandi Nkosi", extractor=lambda _: extracted())
     with pytest.raises(IntakeRejected) as exc:
         intake_document(db, "b.md", b"# invoice", "Thandi Nkosi", extractor=lambda _: extracted())
-    assert exc.value.status_code == 409
+    assert exc.value.status_code == 409 and "SUP-002" in exc.value.message
+    assert "Upload rejected: invoice number already on file" in list(db.scalars(select(AuditLogRow.action)))
+
+
+def test_two_suppliers_may_use_the_same_invoice_number(db):
+    """Invoice numbers are only unique per supplier (weak spot 3)."""
+    a = intake_document(db, "a.md", b"# a", "T", extractor=lambda _: extracted(invoice_number="0001"))
+    b = intake_document(
+        db,
+        "b.md",
+        b"# b",
+        "T",
+        extractor=lambda _: extracted(
+            invoice_number="0001", supplier_name="ABC Office Solutions", bank_account_number="****4821"
+        ),
+    )
+    assert (a.supplier_id, b.supplier_id) == ("SUP-002", "SUP-001")
+    assert a.invoice.id != b.invoice.id and a.invoice.invoice_number == b.invoice.invoice_number == "0001"
 
 
 def test_missing_critical_fields_are_rejected_and_nothing_stored(db):
     with pytest.raises(IntakeRejected) as exc:
         intake_document(db, "a.md", b"# invoice", "T", extractor=lambda _: extracted(bank_account_number=None))
     assert exc.value.status_code == 422 and "bank account number" in exc.value.message
-    assert db.get(InvoiceRow, "INV-1") is None
+    assert by_number(db, "INV-1") is None
 
 
 def test_llm_outage_is_a_clean_503(db):
@@ -91,11 +113,11 @@ def test_duplicate_check_only_looks_at_earlier_uploads(db):
 
     original = extracted(invoice_number="INV-A")
     reissue = extracted(invoice_number="INV-B", invoice_date="15 September 2026", due_date="15 October 2026")
-    intake_document(db, "a.md", b"# a", "T", extractor=lambda _: original)
-    intake_document(db, "b.md", b"# b", "T", extractor=lambda _: reissue)
+    a = intake_document(db, "a.md", b"# a", "T", extractor=lambda _: original).invoice.id
+    b = intake_document(db, "b.md", b"# b", "T", extractor=lambda _: reissue).invoice.id
 
-    def types(invoice_id):
-        return {i.type for i in run_rule_checks(load_check_context(db, invoice_id))}
+    def findings(invoice_id):
+        return {i.type: i for i in run_rule_checks(load_check_context(db, invoice_id))}
 
-    assert "DUPLICATE_INVOICE" not in types("INV-A")
-    assert "DUPLICATE_INVOICE" in types("INV-B")
+    assert "DUPLICATE_INVOICE" not in findings(a)
+    assert "INV-A" in findings(b)["DUPLICATE_INVOICE"].description  # humans see the invoice number

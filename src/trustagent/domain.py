@@ -132,7 +132,10 @@ class Transaction(BaseModel):
 
 
 class Invoice(BaseModel):
+    # Internal id (database key). ``invoice_number`` is the supplier's own number: it is only
+    # unique per supplier, so two suppliers may both send "INV-0001" (weak spot 3, ADR-045).
     id: str
+    invoice_number: str = ""
     supplier_id: str | None = None
     supplier_name: str
     amount: Decimal
@@ -147,6 +150,10 @@ class Invoice(BaseModel):
     line_items: list[LineItem] = Field(default_factory=list)
     status: InvoiceStatus = InvoiceStatus.SUBMITTED
     urgency: Urgency = Urgency.NORMAL
+
+    def model_post_init(self, _context: object) -> None:
+        if not self.invoice_number:
+            self.invoice_number = self.id
 
 
 class Approver(BaseModel):

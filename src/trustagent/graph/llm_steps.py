@@ -125,7 +125,8 @@ def report_messages(inp: ReportInput) -> list:
         if e["type"] != "CONFIRMED_MATCH"
     ]
     confirmed = [e["description"] for e in inp.evidence if e["type"] == "CONFIRMED_MATCH"]
-    body = f"""INVOICE: {inv["id"]} from {inv["supplier_name"]}, R{float(inv["amount"]):,.2f}, due {inv.get("due_date")}
+    headline = f"{inv['invoice_number']} from {inv['supplier_name']}, R{float(inv['amount']):,.2f}"
+    body = f"""INVOICE: {headline}, due {inv.get("due_date")}
 
 RISK (decided by code): score {inp.score}/100, level {inp.level}, MINIMUM action {inp.minimum_action}
 

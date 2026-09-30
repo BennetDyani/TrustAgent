@@ -86,7 +86,8 @@ class PolicyRow(Base):
 class InvoiceRow(Base):
     __tablename__ = "invoices"
 
-    id: Mapped[str] = mapped_column(String(50), primary_key=True)
+    id: Mapped[str] = mapped_column(String(50), primary_key=True)  # internal
+    invoice_number: Mapped[str] = mapped_column(String(50))  # the supplier's number; unique per supplier
     supplier_id: Mapped[str | None] = mapped_column(ForeignKey("suppliers.id"), index=True)
     supplier_name: Mapped[str] = mapped_column(String(200))
     amount: Mapped[Decimal] = mapped_column(Money)
@@ -111,7 +112,10 @@ class InvoiceRow(Base):
     # created_at can't be used: now() is identical for every row in one transaction.
     upload_seq: Mapped[int] = mapped_column(BigInteger, Identity())
 
-    __table_args__ = (UniqueConstraint("upload_seq", name="uq_invoices_upload_seq"),)
+    __table_args__ = (
+        UniqueConstraint("upload_seq", name="uq_invoices_upload_seq"),
+        UniqueConstraint("supplier_id", "invoice_number", name="uq_invoices_supplier_number"),
+    )
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

@@ -130,13 +130,14 @@ def to_invoice(ex: ExtractedInvoice, *, fallback_id: str) -> NormalizedInvoice:
     if currency != "ZAR":
         warnings.append(f"Invoice currency is {currency}; thresholds and ranges are in ZAR.")
 
-    invoice_id = (ex.invoice_number or "").strip()
-    if not invoice_id:
-        invoice_id = fallback_id
+    number = (ex.invoice_number or "").strip()
+    if not number:
+        number = fallback_id
         warnings.append(f"No invoice number found; using '{fallback_id}'.")
 
     invoice = Invoice(
-        id=invoice_id,
+        id=number,  # provisional; intake assigns the internal id
+        invoice_number=number,
         supplier_name=ex.supplier_name.strip(),
         amount=amount,
         currency=currency,

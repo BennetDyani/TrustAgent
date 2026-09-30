@@ -40,10 +40,15 @@ def call(name: str, args: dict | None = None, i: int = 0) -> dict:
 
 
 @pytest.fixture
-def case(service, upload) -> Iterator[DeepDiveInput]:
+def case(service, upload, clean_db) -> Iterator[DeepDiveInput]:
+    from trustagent.db.models import InvestigationRow
+    from trustagent.workflow.identity import DEMO_USERS
+
     case_id = upload()
-    list(service.start(case_id, __import__("trustagent.workflow.identity", fromlist=["x"]).DEMO_USERS["thandi"]))
-    yield DeepDiveInput(case_id, "INV-1", "SUP-002", "Risk is MEDIUM.")
+    list(service.start(case_id, DEMO_USERS["thandi"]))
+    with clean_db() as s:
+        invoice_id = s.get(InvestigationRow, case_id).invoice_id
+    yield DeepDiveInput(case_id, invoice_id, "SUP-002", "Risk is MEDIUM.")
 
 
 def test_agent_uses_tools_then_submits_findings(clean_db, case):

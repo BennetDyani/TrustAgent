@@ -24,6 +24,7 @@ def to_transaction(row: TransactionRow) -> Transaction:
 def to_invoice(row: InvoiceRow) -> Invoice:
     return Invoice(
         id=row.id,
+        invoice_number=row.invoice_number,
         supplier_id=row.supplier_id,
         supplier_name=row.supplier_name,
         amount=row.amount,

@@ -275,10 +275,10 @@ def check_duplicate(ctx: CheckContext, policy: RulePolicy) -> list[RiskIndicator
                 _rule(
                     "DUPLICATE_INVOICE",
                     Severity.HIGH,
-                    f"Possible duplicate of invoice {other.id} ({rands(other.amount)}, {other.date}) from the same "
-                    "supplier with the same billed items."
+                    f"Possible duplicate of invoice {other.invoice_number} ({rands(other.amount)}, {other.date}) "
+                    "from the same supplier with the same billed items."
                     if same_items
-                    else f"Possible duplicate of invoice {other.id}: same supplier, same amount "
+                    else f"Possible duplicate of invoice {other.invoice_number}: same supplier, same amount "
                     f"({rands(other.amount)}) on the same date ({other.date}).",
                 )
             ]

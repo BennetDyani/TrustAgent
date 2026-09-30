@@ -131,7 +131,7 @@ def test_unparseable_date_and_due_before_invoice_date_are_warnings():
 
 def test_missing_invoice_number_uses_fallback_with_warning():
     result = to_invoice(extracted(invoice_number=None), fallback_id="upload-1")
-    assert result.invoice.id == "upload-1"
+    assert result.invoice.invoice_number == "upload-1"
     assert any("No invoice number" in w for w in result.warnings)
 
 

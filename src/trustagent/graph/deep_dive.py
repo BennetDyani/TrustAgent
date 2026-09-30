@@ -108,7 +108,7 @@ def build_tools(session_factory: sessionmaker, inp: DeepDiveInput) -> list[Struc
             others = s.scalars(select(InvoiceRow).where(InvoiceRow.id != inp.invoice_id)).all()
 
             def brief(r: InvoiceRow) -> dict:
-                return {"invoice": r.id, "supplier": r.supplier_name, "amount": _money(r.amount),
+                return {"invoice": r.invoice_number, "supplier": r.supplier_name, "amount": _money(r.amount),
                         "date": str(r.date), "status": r.status}  # fmt: skip
 
             tolerance = inv.amount * Decimal("0.01")
@@ -140,7 +140,8 @@ def build_tools(session_factory: sessionmaker, inp: DeepDiveInput) -> list[Struc
             )
             return json.dumps({
                 "supplier": {"name": supplier.name, "verified": supplier.verified, "invoices_on_file": total},
-                "other_cases": [{"case": c.id, "invoice": c.invoice_id, "status": c.status, "risk_level": c.risk_level,
+                "other_cases": [{"case": c.id, "invoice": s.get(InvoiceRow, c.invoice_id).invoice_number,
+                                 "status": c.status, "risk_level": c.risk_level,
                                  "decision": c.decision} for c in cases],
             })  # fmt: skip
 
@@ -207,7 +208,7 @@ def llm_deep_diver(session_factory: sessionmaker, llm: BaseChatModel | None = No
         graph = build_deep_dive_graph(model, build_tools(session_factory, inp))
         messages = [
             SystemMessage(DEEP_DIVE_SYSTEM.format(reason=inp.reason)),
-            HumanMessage(f"Investigate invoice {inp.invoice_id}. Use the tools, then call {SUBMIT}."),
+            HumanMessage(f"Investigate the invoice under review. Use the tools, then call {SUBMIT}."),
         ]
         limit = get_settings().deep_dive_recursion_limit
         try:
