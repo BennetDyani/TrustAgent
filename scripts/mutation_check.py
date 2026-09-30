@@ -26,8 +26,8 @@ M = [
     ),
     (
         "src/trustagent/rules/scoring.py",
-        "weight = 0 if indicator.type in counted else base",
-        "weight = base",
+        "elif indicator.type in counted:",
+        "elif False:",
         "count once",
     ),
     ("src/trustagent/rules/scoring.py", "if score >= 60:", "if score > 60:", "HIGH boundary"),
@@ -79,6 +79,24 @@ M = [
         "if evidence.phone_source not in TRUSTED_SOURCES:",
         "email must come from a trusted source",
     ),
+    (
+        "src/trustagent/rules/scoring.py",
+        "weight = min(weight, max(ai_cap - ai_total, 0))",
+        "weight = weight",
+        "AI points capped",
+    ),
+    (
+        "src/trustagent/rules/scoring.py",
+        "if is_ai and indicator.overlaps in fired_rules:",
+        "if False:",
+        "AI overlap with a fired rule scores 0",
+    ),
+    (
+        "src/trustagent/graph/nodes.py",
+        "if not quote_supported(obs.quote, inp.invoice_text):",
+        "if False:",
+        "AI quote must be in the invoice",
+    ),
 ]
 missed = 0
 for path, old, new, name in M:
@@ -88,7 +106,7 @@ for path, old, new, name in M:
     p.write_text(src.replace(old, new, 1), encoding="utf-8")
     try:
         r = subprocess.run(
-            ["uv", "run", "pytest", "-q", "-x", "tests/rules", "tests/workflow"], capture_output=True, text=True
+            ["uv", "run", "pytest", "-q", "-x", "tests/rules", "tests/workflow", "tests/graph"], capture_output=True, text=True
         )
     finally:
         p.write_text(src, encoding="utf-8")

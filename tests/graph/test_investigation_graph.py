@@ -188,17 +188,48 @@ def test_llm_outage_still_completes_with_rules_and_a_cautious_fallback(service, 
 # --- the AI layer: whitelisted observations only --------------------------------------------------------
 
 
-def test_ai_observations_are_scored_with_their_quote_and_source(service, upload, clean_db, fake_llm):
-    fake_llm.observations = [AIObservation(type="SOCIAL_ENGINEERING", severity="HIGH",
-                                           description="Pressure to bypass verification.",
-                                           quote="Please do not call our office")]  # fmt: skip
-    case_id = upload()
-    events = run(service, case_id)
+DOC = "# INVOICE\nNotes: Please do not call our office line; reply to this email only.\nRe-issued invoice for August."
+
+
+def obs(type_="SOCIAL_ENGINEERING", quote="Please do not call our office line", relates_to_rule=None):
+    return AIObservation(type=type_, severity="HIGH", description="Pressure to bypass verification.", quote=quote,
+                         relates_to_rule=relates_to_rule)  # fmt: skip
+
+
+def test_ai_observations_are_scored_with_their_quote_and_source(service, upload, fake_llm):
+    fake_llm.observations = [obs()]
+    events = run(service, upload(document=DOC))
     ev = [e for e in events if e["event"] == "evidence" and e["type"] == "SOCIAL_ENGINEERING"]
     assert ev and ev[0]["source"] == "AI" and ev[0]["weight"] == 20
-    assert 'Invoice says: "Please do not call our office"' in ev[0]["description"]
-    # The reviewer saw the rule findings as facts, and only the redacted document.
-    assert fake_llm.review_inputs[0].rule_findings
+    assert 'Invoice says: "Please do not call our office line"' in ev[0]["description"]
+    assert fake_llm.review_inputs[0].rule_findings  # the reviewer saw the rule findings as facts
+
+
+def test_ai_observation_with_an_invented_quote_is_discarded(service, upload, fake_llm):
+    fake_llm.observations = [obs(quote="Pay to our new account immediately")]
+    events = run(service, upload(document=DOC))
+    assert not [e for e in events if e["event"] == "evidence" and e["source"] == "AI"]
+
+
+def test_ai_restating_a_rule_finding_adds_no_points(service, upload, fake_llm):
+    # Metro Cleaning account ****9917 vs ****7733 on file -> BANK_DETAILS_CHANGED fires.
+    fake_llm.observations = [
+        obs(type_="OTHER", quote="Re-issued invoice for August", relates_to_rule="BANK_DETAILS_CHANGED")
+    ]
+    events = run(service, upload(document=DOC, bank_account_number="1092847591 9917"))
+    ai_ev = [e for e in events if e["event"] == "evidence" and e["source"] == "AI"]
+    assert ai_ev and ai_ev[0]["weight"] == 0 and ai_ev[0]["overlaps"] == "BANK_DETAILS_CHANGED"
+
+
+def test_ai_points_are_capped_at_20_across_review_and_deep_dive(service, upload, fake_llm):
+    fake_llm.observations = [obs(), obs(type_="DOCUMENT_ANOMALY", quote="Re-issued invoice for August")]
+    fake_llm.dive_observations = [{"type": "OTHER", "description": "Shared account.", "severity": "HIGH"}]
+    # Unknown supplier, R96k -> MEDIUM -> deep dive runs.
+    events = run(service, upload(document=DOC, supplier_name="Brand New Traders", supplier_email="a@brandnew.co.za",
+                                 bank_account_holder="Brand New Traders", total_due="R 96,000.00", subtotal=None,
+                                 vat_amount=None))  # fmt: skip
+    ai_weights = [e["weight"] for e in events if e["event"] == "evidence" and e["source"] == "AI"]
+    assert len(ai_weights) == 3 and sum(ai_weights) == 20
 
 
 # --- the bounded deep dive -------------------------------------------------------------------------------

@@ -425,6 +425,45 @@ removed from the prompt. The AI-review prompt was also tightened, because it som
 (e.g. "re-issued invoice, matches the duplicate finding") as `DOCUMENT_ANOMALY`, double-counting 10 points.
 **Principle.** The same as the score: anything decidable, including *process*, is decided in code.
 
+### ADR-041: Every AI observation must quote the invoice, and code checks the quote
+
+The AI review must copy the exact words its observation is based on. `quote_supported()` checks those words are
+really in the (redacted) invoice. It's lenient about case, whitespace, markdown bold, typographic quotes and a
+"..." where words were skipped, but strict about the words. An observation whose quote isn't found is discarded
+and logged. This stops invented concerns, and an injected instruction can't make one up either. Deep-dive
+observations are exempt, because they're based on tool results rather than the document.
+
+### ADR-042: An AI observation that restates a rule finding scores 0
+
+**Context.** The AI sometimes re-described a rule fact in its own words (INV-2004: "re-issued invoice", when
+`DUPLICATE_INVOICE` had fired), adding 5-10 points for the same concern.
+**Decision.** Each observation declares `relates_to_rule`: the rule type it overlaps, or null. If that rule
+**actually fired**, the observation is kept as evidence at weight 0. Code checks the claim: an overlap with a rule
+that didn't fire is ignored, and the observation counts normally. A zero-weight overlap doesn't use up its type,
+so a later, genuinely new observation of the same type still counts.
+**Live effect.** INV-2004 dropped from 40 to 35 (the restated duplicate now adds 0).
+**Watch.** The model sometimes also tags pressure *wording* as overlapping `URGENCY_INDICATOR` (the priority
+*label*), e.g. INV-1048 and 1052, which is arguably over-cautious in the conservative direction. Phase 6 measures
+how often.
+
+### ADR-043: AI findings can add at most 20 points in total (Bennet, 2026-09-30)
+
+AI review and deep dive together are capped at `AI_SCORE_CAP = 20`, about one risk level. The AI can lift a case
+(MEDIUM→HIGH, HIGH→CRITICAL) but can never decide an outcome alone. Rule weights are never capped. Trimmed AI
+indicators stay as evidence, with their weight shown.
+**Trade-off, seen live.** INV-1053 (Prestige Catering: new supplier, "verbal approval", holding-company account,
+R215k) now scores **50, MEDIUM** (rules 30 + AI capped at 20), down from 60, HIGH. Its minimum action is
+`REQUEST_VERIFICATION`, and POL-002 dual approval still applies. It would score HIGH if the account-holder rule
+fired, but "Prestige Events Holdings" sits exactly at the 0.5 similarity threshold (ADR-021). Phase 6 should
+decide whether that threshold moves, using the labelled data.
+
+### ADR-044: Run-to-run variation is measured before it's treated (Bennet, 2026-09-30)
+
+Gemini 3.x ignores temperature (ADR-025), so the same invoice can get different AI observations. Phase 6 runs
+each case several times and reports how often the risk level and the recommended action change. A
+self-consistency fix (run the review twice, keep only what agrees) was rejected for now: it doubles AI calls on a
+15-requests-per-minute free tier. It will be revisited with data.
+
 ---
 
 ## Lessons caught during the build

@@ -90,3 +90,45 @@ def test_indicator_order_and_source_are_preserved():
     inds = [ind("URGENCY_INDICATOR"), ind("SOCIAL_ENGINEERING", IndicatorSource.AI)]
     result = calculate_risk(inds)
     assert [(i.type, i.source) for i in result.indicators] == [(i.type, i.source) for i in inds]
+
+
+# --- AI limits: overlap with a rule scores 0; AI total capped at 20 (ADR-042/043) -----------------
+
+
+def ai(type_: str, overlaps: str | None = None) -> RiskIndicator:
+    return RiskIndicator(type=type_, description=type_, severity=Severity.HIGH, source=IndicatorSource.AI,
+                         overlaps=overlaps)  # fmt: skip
+
+
+def test_ai_total_is_capped_at_20():
+    result = calculate_risk([ind("URGENCY_INDICATOR"), ai("SOCIAL_ENGINEERING"), ai("DOCUMENT_ANOMALY"), ai("OTHER")])
+    assert [i.weight for i in result.indicators] == [10, 20, 0, 0]
+    assert result.score == 30
+
+
+def test_cap_trims_rather_than_drops():
+    result = calculate_risk([ai("DOCUMENT_ANOMALY"), ai("OTHER"), ai("SOCIAL_ENGINEERING")])
+    assert [i.weight for i in result.indicators] == [10, 5, 5]  # 10 + 5 + 5 = 20
+    assert len(result.indicators) == 3  # everything stays as evidence
+
+
+def test_rule_weights_are_never_capped():
+    rules = [ind(t) for t in ("BANK_DETAILS_CHANGED", "UNUSUAL_AMOUNT", "URGENCY_INDICATOR")]
+    assert calculate_risk(rules).score == 60
+
+
+def test_ai_observation_overlapping_a_fired_rule_scores_zero():
+    result = calculate_risk([ind("DUPLICATE_INVOICE"), ai("OTHER", overlaps="DUPLICATE_INVOICE")])
+    assert [i.weight for i in result.indicators] == [35, 0]
+
+
+def test_overlap_claim_with_a_rule_that_did_not_fire_is_ignored():
+    # Code checks the model's claim: nothing else scores this concern, so it counts.
+    result = calculate_risk([ind("URGENCY_INDICATOR"), ai("SOCIAL_ENGINEERING", overlaps="DUPLICATE_INVOICE")])
+    assert [i.weight for i in result.indicators] == [10, 20]
+
+
+def test_zero_weight_overlap_does_not_use_up_the_type():
+    # An overlapping OTHER shouldn't stop a later, genuinely new OTHER from counting.
+    result = calculate_risk([ind("DUPLICATE_INVOICE"), ai("OTHER", overlaps="DUPLICATE_INVOICE"), ai("OTHER")])
+    assert [i.weight for i in result.indicators] == [35, 0, 5]

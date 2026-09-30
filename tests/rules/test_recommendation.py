@@ -151,3 +151,46 @@ def test_duplicate_step_and_clean_invoice_step():
     assert required_next_steps({"CONFIRMED_MATCH"}, True, Decimal("1")) == [
         "No further checks are required; the payment can go through normal approval."
     ]
+
+
+# --- quotes must be verifiable in the document (ADR-041) -----------------------------------------
+
+from trustagent.rules.recommendation import quote_supported  # noqa: E402
+
+DOC = """## Notes
+Please do not call our office line regarding this change as it is being serviced.
+| Account Holder | **Q-Ship Trading** |
+Payment must be released today…"""
+
+
+@pytest.mark.parametrize(
+    "quote",
+    [
+        "Please do not call our office line",
+        "please  DO NOT call our\noffice line",  # case and whitespace
+        "Account Holder | Q-Ship Trading",  # markdown bold removed
+        "Please do not call our office ... being serviced",  # model elided the middle
+        "Payment must be released today...",  # unicode vs ascii ellipsis
+    ],
+)
+def test_quotes_found_in_the_document_are_supported(quote):
+    assert quote_supported(quote, DOC)
+
+
+@pytest.mark.parametrize("quote", [None, "", "  ", "Pay to our new account immediately", "ok"])
+def test_missing_invented_or_trivial_quotes_are_not_supported(quote):
+    assert not quote_supported(quote, DOC)
+
+
+def test_filter_passes_the_overlap_claim_through():
+    accepted, _ = filter_ai_indicators(
+        [
+            {
+                "type": "OTHER",
+                "description": "Re-issued invoice",
+                "severity": "LOW",
+                "relates_to_rule": "DUPLICATE_INVOICE",
+            }
+        ]
+    )
+    assert accepted[0].overlaps == "DUPLICATE_INVOICE"

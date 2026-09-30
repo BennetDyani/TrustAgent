@@ -2,7 +2,8 @@
 
 from collections.abc import Iterable
 
-from trustagent.domain import RiskIndicator, RiskLevel, RiskResult, ScoredIndicator
+from trustagent.config import get_settings
+from trustagent.domain import IndicatorSource, RiskIndicator, RiskLevel, RiskResult, ScoredIndicator
 
 RISK_WEIGHTS: dict[str, int] = {
     # Rule checks (rules/checks.py)
@@ -40,19 +41,35 @@ def classify_level(score: int) -> RiskLevel:
     return RiskLevel.LOW
 
 
-def calculate_risk(indicators: Iterable[RiskIndicator]) -> RiskResult:
+def calculate_risk(indicators: Iterable[RiskIndicator], ai_cap: int | None = None) -> RiskResult:
     """Sum the weights, counting each indicator type once, capped at 100.
 
-    Repeats of a type (e.g. three separate "pressure" phrases) are kept as
-    evidence with weight 0, so one concern reported many times can't inflate
-    the score.
+    - Repeats of a type (e.g. three separate "pressure" phrases) are kept as
+      evidence with weight 0, so one concern reported many times can't inflate
+      the score.
+    - An AI observation that overlaps a rule finding which actually fired scores
+      0: the concern is already counted (ADR-042). Code checks the model's claim.
+    - AI findings together add at most ``ai_cap`` points (ADR-043). Rule weights
+      are never capped. Trimmed AI indicators stay as evidence.
     """
+    indicators = list(indicators)
+    ai_cap = get_settings().ai_score_cap if ai_cap is None else ai_cap
+    fired_rules = {i.type for i in indicators if i.source != IndicatorSource.AI and i.type != "CONFIRMED_MATCH"}
     counted: set[str] = set()
+    ai_total = 0
     scored: list[ScoredIndicator] = []
     for indicator in indicators:
-        base = RISK_WEIGHTS.get(indicator.type, RISK_WEIGHTS["OTHER"])
-        weight = 0 if indicator.type in counted else base
-        counted.add(indicator.type)
+        is_ai = indicator.source == IndicatorSource.AI
+        if is_ai and indicator.overlaps in fired_rules:
+            weight = 0  # already scored by the rule; doesn't use up the type
+        elif indicator.type in counted:
+            weight = 0
+        else:
+            weight = RISK_WEIGHTS.get(indicator.type, RISK_WEIGHTS["OTHER"])
+            counted.add(indicator.type)
+        if is_ai and weight:
+            weight = min(weight, max(ai_cap - ai_total, 0))
+            ai_total += weight
         scored.append(ScoredIndicator(**indicator.model_dump(), weight=weight))
 
     score = min(sum(i.weight for i in scored), MAX_SCORE)

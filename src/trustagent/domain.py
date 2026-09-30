@@ -170,6 +170,8 @@ class RiskIndicator(BaseModel):
     severity: Severity
     source: IndicatorSource = IndicatorSource.RULE
     citations: list[Citation] = Field(default_factory=list)
+    # For AI observations: the rule finding the model says this overlaps (ADR-042).
+    overlaps: str | None = None
 
 
 class ScoredIndicator(RiskIndicator):

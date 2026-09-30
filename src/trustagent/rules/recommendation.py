@@ -5,6 +5,7 @@ than the risk level requires. The model may report observations; code keeps
 only the qualitative types rules can't see.
 """
 
+import re
 from collections.abc import Iterable
 from decimal import Decimal
 from typing import Any
@@ -128,6 +129,31 @@ def required_next_steps(findings: Iterable[str], supplier_verified: bool, amount
     return steps or ["No further checks are required; the payment can go through normal approval."]
 
 
+_TYPOGRAPHY = str.maketrans({"…": "...", "’": "'", "‘": "'", "“": '"', "”": '"',
+                              "–": "-", "—": "-", "*": None})  # fmt: skip
+MIN_QUOTE_CHARS = 8
+
+
+def _normalise_text(text: str) -> str:
+    return re.sub(r"\s+", " ", text.translate(_TYPOGRAPHY)).strip().casefold()
+
+
+def quote_supported(quote: str | None, document: str) -> bool:
+    """Does the model's quote really appear in the document? (ADR-041)
+
+    Lenient about case, whitespace, markdown bold, typographic quotes and a
+    "..." where the model skipped words. Strict about the words themselves.
+    """
+    if not quote or not quote.strip():
+        return False
+    doc = _normalise_text(document)
+    parts = [p.strip(" .") for p in _normalise_text(quote).split("...")]
+    parts = [p for p in parts if p]
+    if sum(len(p) for p in parts) < MIN_QUOTE_CHARS:
+        return False
+    return all(p in doc for p in parts)
+
+
 def _field(obs: Any, name: str) -> Any:
     return obs.get(name) if isinstance(obs, dict) else getattr(obs, name, None)
 
@@ -157,6 +183,7 @@ def filter_ai_indicators(proposed: Iterable[Any]) -> tuple[list[RiskIndicator], 
                 description=description.strip(),
                 severity=Severity(severity) if severity in Severity.__members__ else Severity.MEDIUM,
                 source=IndicatorSource.AI,
+                overlaps=overlaps if isinstance(overlaps := _field(obs, "relates_to_rule"), str) else None,
             )
         )
     return accepted, ignored

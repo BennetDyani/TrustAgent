@@ -30,6 +30,7 @@ from trustagent.rules.recommendation import (
     fallback_recommendation,
     filter_ai_indicators,
     minimum_action,
+    quote_supported,
     required_next_steps,
     resolve_recommended_action,
 )
@@ -134,6 +135,9 @@ def make_nodes(deps: Deps) -> dict[str, Callable]:
                     "notes": [f"AI review unavailable: {exc}"]}  # fmt: skip
         findings, ignored = [], []
         for obs in review.observations:  # one at a time, so each keeps its own quote
+            if not quote_supported(obs.quote, inp.invoice_text):
+                ignored.append(f"{obs.type} (quote not found in the invoice)")  # ADR-041
+                continue
             accepted, rejected = filter_ai_indicators([obs])
             ignored += rejected
             quote = f' (Invoice says: "{obs.quote}")' if obs.quote else ""

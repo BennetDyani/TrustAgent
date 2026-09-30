@@ -69,6 +69,10 @@ class Settings(BaseSettings):
     rrf_k: int = 60
     retrieval_top_k: int = 5
 
+    # --- AI limits -----------------------------------------------------------
+    # Most points AI findings (review + deep dive) can add in total (Bennet, ADR-043).
+    ai_score_cap: int = 20
+
     # --- Agent ---------------------------------------------------------------
     deep_dive_recursion_limit: int = 8
 

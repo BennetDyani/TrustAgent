@@ -98,10 +98,10 @@ def service(clean_db, fake_llm) -> Iterator[InvestigationService]:
 def upload(clean_db):
     """Intake an invoice (fake extractor) and return its investigation id."""
 
-    def _upload(**overrides: Any) -> str:
+    def _upload(document: str = "# invoice", **overrides: Any) -> str:
         ex = extracted(**overrides)
         with clean_db() as s, s.begin():
-            return intake_document(s, f"{ex.invoice_number}.md", b"# invoice", "Thandi Nkosi",
+            return intake_document(s, f"{ex.invoice_number}.md", document.encode(), "Thandi Nkosi",
                                    extractor=lambda _: ex).investigation_id  # fmt: skip
 
     return _upload

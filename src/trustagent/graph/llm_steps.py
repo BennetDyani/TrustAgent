@@ -19,6 +19,11 @@ from trustagent.llm.factory import get_chat_model
 from trustagent.llm.usage import invoke_structured
 
 Severity = Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+RuleType = Literal[
+    "BANK_DETAILS_CHANGED", "DUPLICATE_INVOICE", "ACCOUNT_HOLDER_MISMATCH", "EMAIL_DOMAIN_MISMATCH", "UNUSUAL_AMOUNT",
+    "PERSONAL_EMAIL_DOMAIN", "SUPPLIER_NOT_VERIFIED", "AMOUNT_EXCEEDS_THRESHOLD", "THRESHOLD_AVOIDANCE",
+    "PATTERN_ANOMALY", "URGENCY_INDICATOR",
+]  # fmt: skip
 
 
 class AIObservation(BaseModel):
@@ -26,7 +31,14 @@ class AIObservation(BaseModel):
     type: Literal["SOCIAL_ENGINEERING", "DOCUMENT_ANOMALY", "OTHER"]
     description: str = Field(description="What was observed and why it matters, in one or two sentences.")
     severity: Severity
-    quote: str | None = Field(description="The exact words from the invoice this is based on, or null.")
+    quote: str | None = Field(
+        description="The exact words copied from the invoice that this is based on. Checked by code: an observation "
+        "whose quote is not in the invoice is discarded."
+    )
+    relates_to_rule: RuleType | None = Field(
+        description="If this is about the same concern as one of the RULE FINDINGS, that rule's type; otherwise "
+        "null. Overlapping observations are kept as evidence but add no points."
+    )
 
 
 class AIReview(BaseModel):
