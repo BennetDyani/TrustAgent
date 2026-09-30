@@ -35,3 +35,11 @@ def test_engine_and_sessionmaker_construct_without_connecting():
     engine = get_engine()
     assert engine.dialect.name == "postgresql"
     assert get_sessionmaker() is not None
+
+
+def test_rule_objects_construct():
+    from trustagent.rules.checks import CheckContext, RulePolicy
+
+    assert RulePolicy.from_settings().large_transaction_threshold > 0
+    assert RulePolicy() == RulePolicy.from_settings()  # code defaults agree with config defaults
+    assert CheckContext(invoice=None, supplier=None).history == []  # type: ignore[arg-type]

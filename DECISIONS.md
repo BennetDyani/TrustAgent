@@ -153,6 +153,79 @@ level, which tells us whether it earns its cost.
 
 ---
 
+## Phase 1: Rules, scoring, minimum action, approvals
+
+### ADR-016: The rules are pure functions and take their thresholds as a parameter
+
+**Decision.** Every check has the signature `check(ctx: CheckContext, policy: RulePolicy) -> list[RiskIndicator]`.
+- `CheckContext` holds the invoice, the supplier, its history and the other invoices, all loaded
+  beforehand. There's no database access in the rules.
+- `RulePolicy` is a frozen dataclass built from settings by default. Tests pass their own.
+
+**Trade-off.** The caller has to gather the context first, which is one extra step in the graph
+node. In exchange, 130+ tests run in under two seconds with no database or model, and
+`calculate_risk(run_rule_checks(ctx))` returns the same result every time for the same input,
+which is what an auditor needs.
+
+### ADR-017: Passed checks are evidence too (`CONFIRMED_MATCH`, weight 0)
+
+**Decision.** When a check passes, it emits `CONFIRMED_MATCH` with a description, e.g. "Bank
+account ****7733 matches the verified account on file".
+**Why.** A LOW score is only convincing if the report can say what was checked and found clean.
+Silence doesn't show the check ran.
+
+### ADR-018: Approvals return a result; guards raise an exception
+
+**Decision.**
+- `record_approval` returns `ApprovalRecorded | ApprovalError`. A refused approval is a normal
+  business outcome with a message for the user (HTTP 403).
+- The `workflow/guards.py` functions raise `GuardError`. Acting on a case in the wrong state is a
+  conflict the caller shouldn't have attempted (HTTP 409).
+
+**Trade-off.** Two error styles in one package, but each matches how the caller has to react.
+
+### ADR-019: The model's action is parsed strictly
+
+**Decision.** `resolve_recommended_action` accepts only exact enum values. `"approve_payment"`,
+`None`, `42` or a dict all fall back to the minimum action and are marked `raised=True`, so the
+report can say the model's proposal was replaced.
+**Why.** Accepting fuzzy input from the model is exactly how prompt injection gets a foothold.
+
+### ADR-020: A mutation smoke test for the business rules
+
+**Context.** All 133 tests passed on the first implementation. Passing tests prove nothing if they
+wouldn't notice a rule changing.
+**Decision.** `scripts/mutation_check.py` breaks 12 key rules one at a time and checks that a test
+fails each time:
+- `>` changed to `>=` at the thresholds,
+- count-once scoring removed,
+- the unverified-supplier branch removed,
+- same-person approval allowed,
+- and others.
+
+All 12 were caught.
+**Trade-off.** It's a hand-picked list, not a full mutation-testing tool like `mutmut`. It costs
+seconds to run and needs no new dependency.
+
+### ADR-021: Known limitation kept from the reference: account-holder similarity at exactly 0.5 passes
+
+**Context.** "Prestige Events Holdings" vs "Prestige Catering & Events" shares 2 of 4 tokens, a
+similarity of 0.5. The rule fires only below 0.5, so the INV-1053 holder name is *not* flagged.
+**Decision.** We match the reference, with a test that documents it
+(`test_account_holder_at_exact_threshold_passes`). That invoice is still caught by other signals:
+- unverified supplier,
+- amount over the threshold,
+- and the AI review, which sees "payment to our holding company account".
+
+The evaluation will show whether the threshold should move. We change it with data, not by feel.
+
+### ADR-022: Re-runs are also allowed on FAILED runs
+
+**Decision.** The reference only re-runs open cases. We also allow a re-run when a run crashed
+(`FAILED`), so a crash is never a dead end. `CLOSED` stays final.
+
+---
+
 ## Lessons caught during the build
 
 - **Phase 0: a field named `date` shadowed the `date` type.** In both the Pydantic and SQLAlchemy

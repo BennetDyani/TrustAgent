@@ -1,0 +1,79 @@
+"""Mutation smoke test: break key business rules one at a time and confirm a test catches each.
+
+Run with:  uv run python scripts/mutation_check.py
+Every line should say CAUGHT. A MISSED line means the tests would not notice that rule changing.
+"""
+
+import pathlib
+import subprocess
+import sys
+
+M = [
+    ("src/trustagent/rules/checks.py", "if amount > threshold:", "if amount >= threshold:", "threshold strict >"),
+    ("src/trustagent/rules/checks.py", "if not sup.verified:", "if False:", "unverified != bank change"),
+    ("src/trustagent/rules/checks.py", 'signature != "" and ', "", "empty line items never match"),
+    (
+        "src/trustagent/rules/checks.py",
+        "if amount > average * policy.pattern_multiplier:",
+        "if amount >= average * policy.pattern_multiplier:",
+        "pattern strict >",
+    ),
+    (
+        "src/trustagent/rules/checks.py",
+        "if ctx.invoice.urgency != Urgency.IMMEDIATE:",
+        "if ctx.invoice.urgency == Urgency.NORMAL:",
+        "HIGH not urgent",
+    ),
+    (
+        "src/trustagent/rules/scoring.py",
+        "weight = 0 if indicator.type in counted else base",
+        "weight = base",
+        "count once",
+    ),
+    ("src/trustagent/rules/scoring.py", "if score >= 60:", "if score > 60:", "HIGH boundary"),
+    (
+        "src/trustagent/rules/recommendation.py",
+        "return Action.APPROVE_PAYMENT if supplier_verified else Action.REQUEST_VERIFICATION",
+        "return Action.APPROVE_PAYMENT",
+        "LOW unverified",
+    ),
+    (
+        "src/trustagent/rules/recommendation.py",
+        ">= Caution[floor.value]",
+        "> Caution[floor.value]",
+        "equal caution accepted",
+    ),
+    (
+        "src/trustagent/workflow/approvals.py",
+        "if any(_same_person(a.name, approver.name) for a in existing):",
+        "if False:",
+        "same person twice",
+    ),
+    (
+        "src/trustagent/workflow/approvals.py",
+        "return amount > _threshold()",
+        "return amount >= _threshold()",
+        "dual strict >",
+    ),
+    (
+        "src/trustagent/workflow/guards.py",
+        'and (verification or {}).get("status") == "PENDING"',
+        "and False",
+        "approve blocked when pending",
+    ),
+]
+missed = 0
+for path, old, new, name in M:
+    p = pathlib.Path(path)
+    src = p.read_text(encoding="utf-8")
+    assert old in src, name
+    p.write_text(src.replace(old, new, 1), encoding="utf-8")
+    try:
+        r = subprocess.run(
+            ["uv", "run", "pytest", "-q", "-x", "tests/rules", "tests/workflow"], capture_output=True, text=True
+        )
+    finally:
+        p.write_text(src, encoding="utf-8")
+    missed += r.returncode == 0
+    print(("CAUGHT  " if r.returncode else "MISSED  ") + name)
+sys.exit(1 if missed else 0)
