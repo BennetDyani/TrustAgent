@@ -1,0 +1,163 @@
+# Architecture Decision Records
+
+Short records of each significant decision: the context, what was decided, and the trade-off
+(including the alternative rejected). Newest decisions are appended at the end of each phase.
+
+---
+
+## Phase 0: Planning and setup
+
+### ADR-001: Mostly a fixed workflow, with one small bounded agent
+
+**Context.** An invoice investigation has checks that must *always* run (bank details, duplicates,
+amounts) and a smaller part where what to look at next depends on what was found.
+**Decision.** The required checks are a fixed LangGraph workflow. Agent autonomy is used only in
+`deep_dive`, a ReAct loop with read-only tools and `recursion_limit ≤ 8`, entered only for MEDIUM or
+ambiguous cases.
+**Trade-off.** A fully agentic loop (what the TypeScript version did) is more flexible, but it
+occasionally skipped steps and needed a "you forgot to call the report tool" nudge plus a fallback.
+A fixed graph is predictable, auditable, cheaper and testable node by node. Autonomy is paid for
+only where it earns its keep.
+
+### ADR-002: Rules decide the facts, the LLM gives judgement, people make decisions
+
+**Context.** An LLM misreading one digit of a bank account must never be able to change an outcome.
+**Decision.** Every verifiable fact is a pure Python function. The model may only contribute
+`SOCIAL_ENGINEERING`, `DOCUMENT_ANOMALY` and `OTHER`; any other type it reports is dropped and
+logged. The score always comes from the calculator. Code enforces the minimum action: the model can
+be more cautious than the risk level, never less. There is no payment tool.
+**Trade-off.** We lose any "intuition" the model might have about amounts or accounts. That is
+deliberate: those questions have exact answers, and exact answers belong in code.
+
+### ADR-003: `CONTRACT_DEVIATION` is raised by code, not by the model
+
+**Context.** The brief lists `CONTRACT_DEVIATION` among the model's types, but "does R14,000 exceed
+the agreed R12,500 ± 2%?" is arithmetic.
+**Decision.** The LLM *extracts* agreed rates from retrieved contract clauses, with citations. Code
+compares invoice lines against those rates (tolerance in config) and raises `CONTRACT_DEVIATION`
+with source `CONTRACT`.
+**Trade-off.** Stricter than the brief, and it depends on extraction quality. But a misread rate
+shows up as a cited, checkable number, not an unverifiable model opinion.
+
+### ADR-004: One settings module
+
+**Context.** A typo in a previous project split a vector index into two directories, and ingestion
+and querying used different embedding models.
+**Decision.** `trustagent/config.py` (pydantic-settings) holds every path, model name, threshold
+and dimension. Nothing else reads environment variables.
+**Trade-off.** One slightly large module rather than settings spread next to their users. Worth
+it: there is exactly one place to look, and one place to be wrong.
+
+### ADR-005: Gemini by default, Groq as the second provider and the judge
+
+**Context.** The job description names OpenAI and Claude; the available keys are Gemini and Groq.
+**Decision.** One chat-model factory supports `gemini | groq | openai | anthropic`, chosen by
+config. Gemini (`gemini-3.5-flash-lite`) is the default generator. Groq is the second model for the
+evaluation comparison and the LLM-as-judge, because the judge must use a different provider from
+the generator. Model IDs were checked against provider docs on 2026-09-30.
+**Trade-off.** The OpenAI and Anthropic paths are wired up but not run end-to-end without keys. The
+README says so rather than claiming otherwise.
+
+### ADR-006: Postgres is the system of record; the checkpoint only holds a paused run
+
+**Context.** A case must be updatable from outside the graph (supplier verification happens on a
+different page, days later), and a re-run must "clear findings, keep the audit log".
+**Decision.** Case status, evidence, approvals, verification and the audit log live in ordinary
+tables. The LangGraph Postgres checkpointer stores only the execution state of a run. Each run gets
+its own thread, `"{investigation_id}:run-{n}"`, so a re-run starts clean while the audit log (keyed
+by investigation) carries across runs.
+**Trade-off.** Two places hold related state, so nodes must write business results to the tables
+explicitly. The alternative, graph state as the only record, would make the verification page
+edit checkpoints directly, and make reporting SQL query serialised blobs.
+
+### ADR-007: The human decision is a loop around `interrupt()`
+
+**Context.** Several human actions leave a case open: the first of two approvals (POL-002),
+ESCALATE, and REQUEST_VERIFICATION.
+**Decision.** `human_decision` calls `interrupt()`, then `execute_action` applies the action. If the
+case is still `ACTION_REQUIRED`, the graph routes back to `human_decision` and pauses again. HOLD
+or a completed approval ends the run. Nothing with side effects happens before `interrupt()`,
+because on resume the paused node runs again from its start.
+**Trade-off.** One long-lived thread per case, rather than a separate action API that bypasses the
+graph. That keeps every decision in the same audited, checkpointed flow.
+
+### ADR-008: Embeddings are `gemini-embedding-001` at 768 dimensions
+
+**Context.** There is no OpenAI key. A local sentence-transformers model would work offline but
+pulls in PyTorch (~1–2 GB).
+**Decision.** Gemini `gemini-embedding-001` with `output_dimensionality=768`, with task types
+`RETRIEVAL_DOCUMENT` for ingestion and `RETRIEVAL_QUERY` for queries. Per Google's docs, dimensions
+below 3072 are not normalised, so we L2-normalise in code (tested). The column dimension comes from
+config, and start-up fails fast if the live column disagrees (`check_embedding_dimension`).
+**Trade-off.** Ingestion needs the network and counts against API quota. We chose `-001` over the
+newer `gemini-embedding-2` because it supports explicit retrieval task types; `-2` uses prompt
+prefixes instead. 768 dimensions keep the HNSW index small with a modest quality cost versus 3072.
+
+### ADR-009: Money is `Decimal` and `NUMERIC(14,2)`, never float
+
+**Context.** The rules compare amounts to the cent (duplicates, thresholds, contract rates).
+**Decision.** Python `Decimal` in the domain models, and `NUMERIC(14,2)` in Postgres.
+**Trade-off.** Slightly more verbose arithmetic, but `0.1 + 0.2 != 0.3` can't cause a missed
+duplicate or a threshold off by a cent.
+
+### ADR-010: The audit log is append-only, enforced by the database
+
+**Context.** A governance-first product has to show the audit trail can't be rewritten.
+**Decision.** A Postgres trigger rejects every `UPDATE` and `DELETE` on `audit_log`. There is a
+test for it.
+**Trade-off.** Genuine corrections have to be new entries, never edits. That's the point.
+
+### ADR-011: Only masked bank account numbers are stored (POPIA)
+
+**Decision.** Extraction reads the full account number (see ADR-013). Code derives the last 4
+digits and stores only `****1234`; the full number is never persisted or logged. This also matches
+the reference data, where supplier records hold only the last 4.
+**Trade-off.** We can't match on the full number. Last-4 plus bank name plus account-holder name is
+what the reference used, and it's enough for these checks.
+
+### ADR-012: Local environment
+
+- **Python 3.12** is installed and pinned by uv (`uv python install 3.12`), leaving the system
+  3.14 alone, since some dependencies still lack 3.14 wheels.
+- **Postgres** runs on host port **5433**: 5432 is taken by a local Postgres install on this machine.
+- **A separate `trustagent_test` database** is used by pytest. It's rebuilt with
+  `alembic downgrade base → upgrade head` each session, and each test's changes are rolled back.
+- **LangGraph checkpoint tables** are created by `PostgresSaver.setup()`, not by Alembic. They
+  belong to the library, which migrates them itself.
+
+### ADR-013: Extract the full account number; derive the last 4 in code
+
+**Context.** A previous version asked the model for "the last 4 digits" and it miscounted.
+**Decision.** The extraction schema asks for the full number *as printed*. Code strips non-digits
+and slices. The same applies to every derived value (totals, dates, domains).
+
+### ADR-014: Reference behaviours kept on purpose
+
+- `URGENCY_INDICATOR` fires only for IMMEDIATE, and "URGENT" is read as IMMEDIATE. HIGH priority
+  does not fire it.
+- An unknown supplier is registered as **UNVERIFIED** at upload, so it scores
+  `SUPPLIER_NOT_VERIFIED` (onboarding), not `BANK_DETAILS_CHANGED`.
+- Approving is blocked while supplier verification is pending.
+- ESCALATE leaves the case open; HOLD closes it.
+
+### ADR-015: What counts as "ambiguous" for the deep dive
+
+**Decision.** `deep_dive` runs when the provisional score is MEDIUM, or when:
+- the score is within 5 points of a level boundary (25–34, 55–64, 75–84), or
+- the AI flagged something while every rule passed, or
+- the supplier is unverified with no payment history.
+
+The condition is a pure function, so routing is testable and explainable.
+**Trade-off.** It's a heuristic. The evaluation reports how often the deep dive changes the final
+level, which tells us whether it earns its cost.
+
+---
+
+## Lessons caught during the build
+
+- **Phase 0: a field named `date` shadowed the `date` type.** In both the Pydantic and SQLAlchemy
+  models, `date: date | None = None` rebinds `date` inside the class body. The next line,
+  `due_date: date | None`, then evaluated `None | None`, which crashed on import. On the ORM side
+  it silently created `due_date` as `NOT NULL`. The construct-everything test caught the crash, and
+  an autogenerate drift check caught the schema. Fix: `import datetime as dt` and annotate
+  `dt.date`.

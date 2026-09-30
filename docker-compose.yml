@@ -1,0 +1,24 @@
+services:
+  db:
+    # PostgreSQL 16 with the pgvector extension preinstalled. One database holds
+    # business data, vectors (pgvector), full-text indexes and LangGraph checkpoints.
+    image: pgvector/pgvector:pg16
+    container_name: trustagent-db
+    environment:
+      POSTGRES_USER: trustagent
+      POSTGRES_PASSWORD: trustagent
+      POSTGRES_DB: trustagent
+    ports:
+      # Host port 5433: 5432 is commonly taken by a local Postgres install on Windows.
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U trustagent -d trustagent"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:
