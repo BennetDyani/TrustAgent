@@ -226,6 +226,80 @@ The evaluation will show whether the threshold should move. We change it with da
 
 ---
 
+## Phase 2: Extraction, validation, supplier matching
+
+### ADR-023: Extraction happens at upload, not inside the investigation graph
+
+**Context.** The plan put `extract` as the first graph node.
+**Decision.** Intake (`workflow/intake.py`) does extract → validate → match supplier → store invoice → open a
+`PENDING` case. The graph starts from the stored invoice at `rule_checks`.
+**Why.** The reviewer sees the extracted fields and warnings *before* investigating, as the reference did. A
+failed extraction is a clean upload error (422 or 503), never a half-finished case. And "LLM down during an
+investigation" has a clear meaning: the facts are already stored, so the rules can still run.
+**Trade-off.** Extraction isn't part of the streamed investigation progress or the graph's checkpoint history.
+It is in the audit log instead.
+
+### ADR-024: No regex fallback for free-form documents; JSON never uses the LLM
+
+**Decision.**
+- JSON invoices are mapped by code into the same `ExtractedInvoice` shape (zero model calls).
+- PDF and Markdown need the model. If it's unavailable, the upload is refused with a clear 503 that suggests
+  JSON.
+
+**Rejected.** The reference fell back to a Markdown regex parser. Its fields were guesses tuned to one template,
+and they would have fed the rules as if they were facts. A wrong "fact" is worse than no case.
+
+### ADR-025: The model copies values as printed; code parses them
+
+**Decision.**
+- The extraction schema asks for strings exactly as printed: `'R 185,000.00'`, `'19 August 2026'`, the full
+  account number, and the priority label.
+- Code parses amounts (including `-R`, decimal commas and space separators), dates (day-first, for South
+  Africa) and urgency.
+- Every field is required-but-nullable, which Groq's strict JSON-schema mode needs.
+
+**Evidence.** INV-2005's account `51007733829904` *contains* `7733` (Metro Cleaning's verified ending). The model
+copies the whole number, and code takes `9904`.
+**Finding.** `gemini-3.5-flash-lite` uses fixed sampling and **ignores `temperature`** (the SDK warns). We don't
+pass it for Gemini, and the evaluation measures run-to-run variance instead of assuming determinism.
+
+### ADR-026: Duplicate detection only compares against *earlier* uploads (deviation from the reference)
+
+**Context.** The reference compared against all other invoices. Notebook 02 showed the result: once INV-2004 (a
+re-issued August invoice) existed, the *original* INV-1049 was flagged as the duplicate. The outcome depended on
+when you happened to investigate, and a re-run could flip a genuine, paid case.
+**Decision.** A new `invoices.upload_seq` identity column records upload order. `load_check_context` passes only
+earlier uploads to the (unchanged, pure) duplicate check. The first submission is the original, and later
+copies are duplicates. Timestamps couldn't be used, because `now()` is identical within one transaction.
+**Trade-off.** If the fraudulent copy happens to arrive first, the genuine one is flagged. That's still the safe
+direction: the pair gets looked at.
+
+### ADR-027: Stored document text is redacted (POPIA)
+
+**Decision.** The model must see the document to read it, but `invoices.raw_text` stores a copy with the full
+account number replaced by `****1234`. That copy is what later prompts (AI review) receive. Markdown bold and
+spacing inside the number are handled, and there's a test for it.
+
+### ADR-028: Live tests are marked and deselected by default
+
+**Decision.** `uv run pytest` runs everything offline (LLM faked only in unit tests). `uv run pytest -m live`
+runs the 11 sample invoices against the real configured model and compares them with hand-labelled ground truth
+(`data/invoices/labels.json`). The same comparator (`extraction/labels.py`) is used by notebook 01 and the
+evaluation, so all three score extraction the same way.
+**Result (2026-09-30).**
+- Gemini `gemini-3.5-flash-lite`: 192/192 fields, including the 5 JSON twins; about 2 s per document.
+- Groq `openai/gpt-oss-120b`: 132/132 fields on the 11 documents, at 2–25 s each (free-tier rate limits).
+
+### Open policy question: should a bank-details change always mean HOLD?
+
+On rules alone, INV-1050 (verified supplier, new bank account) scores 45, MEDIUM, and gets
+`REQUEST_VERIFICATION`, although POL-001's own action is "HOLD payment". The minimum-action table is by risk
+level only, as in the reference. The AI review is expected to add `SOCIAL_ENGINEERING` for the "account closed,
+pay urgently" wording, which would lift it to HIGH, but that depends on the model. **Undecided. Raised with
+Bennet.**
+
+---
+
 ## Lessons caught during the build
 
 - **Phase 0: a field named `date` shadowed the `date` type.** In both the Pydantic and SQLAlchemy
@@ -234,3 +308,10 @@ The evaluation will show whether the threshold should move. We change it with da
   it silently created `due_date` as `NOT NULL`. The construct-everything test caught the crash, and
   an autogenerate drift check caught the schema. Fix: `import datetime as dt` and annotate
   `dt.date`.
+- **Phase 2: insert order without ORM relationships.** The invoice and its investigation were added in one
+  flush. SQLAlchemy only orders inserts by foreign key when a `relationship()` is declared, so the case row was
+  inserted first and violated its foreign key. Caught by the intake tests. Fix: an explicit `flush()` after the
+  invoice.
+- **Phase 2: a notebook found a behaviour bug the unit tests couldn't.** Running all 11 invoices through one
+  database showed the original INV-1049 flagged as a duplicate of its later re-issue (ADR-026). Each unit test
+  had only one invoice pair in a fixed order.

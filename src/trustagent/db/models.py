@@ -18,11 +18,13 @@ from sqlalchemy import (
     Date,
     DateTime,
     ForeignKey,
+    Identity,
     Index,
     Integer,
     Numeric,
     String,
     Text,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
@@ -104,6 +106,12 @@ class InvoiceRow(Base):
     raw_text: Mapped[str | None] = mapped_column(Text)
     extraction_warnings: Mapped[list[str]] = mapped_column(JSONB, default=list)
     submitted_by: Mapped[str | None] = mapped_column(String(200))
+    # Upload order. Duplicate checks compare only with EARLIER uploads, so the first
+    # submission is the original and a later copy is the duplicate (ADR-026).
+    # created_at can't be used: now() is identical for every row in one transaction.
+    upload_seq: Mapped[int] = mapped_column(BigInteger, Identity())
+
+    __table_args__ = (UniqueConstraint("upload_seq", name="uq_invoices_upload_seq"),)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

@@ -43,3 +43,27 @@ def test_rule_objects_construct():
     assert RulePolicy.from_settings().large_transaction_threshold > 0
     assert RulePolicy() == RulePolicy.from_settings()  # code defaults agree with config defaults
     assert CheckContext(invoice=None, supplier=None).history == []  # type: ignore[arg-type]
+
+
+def test_llm_factory_constructs_configured_models_without_calling_them():
+    import pytest
+
+    from trustagent.llm.factory import LLMNotConfigured, get_chat_model, model_for
+
+    for role in ("generator", "judge"):
+        provider, model = model_for(role)
+        try:
+            llm = get_chat_model(role)
+        except LLMNotConfigured:
+            pytest.skip(f"no API key for {provider}")
+        assert model in repr(llm) or getattr(llm, "model_name", None) == model or getattr(llm, "model", None) == model
+
+
+def test_missing_key_is_a_clear_error():
+    import pytest
+
+    from trustagent.config import Settings
+    from trustagent.llm.factory import LLMNotConfigured, get_chat_model
+
+    with pytest.raises(LLMNotConfigured, match="ANTHROPIC_API_KEY"):
+        get_chat_model(provider="anthropic", model="any", settings=Settings(_env_file=None, anthropic_api_key=None))

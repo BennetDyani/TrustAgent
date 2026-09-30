@@ -25,3 +25,32 @@ def test_name_similarity(a, b, expected):
 
 def test_similarity_is_symmetric():
     assert name_similarity("Digital Print Co", "Print Digital") == name_similarity("Print Digital", "Digital Print Co")
+
+
+# --- supplier matching ------------------------------------------------------------------
+
+from tests.factories import seed_supplier  # noqa: E402
+from trustagent.rules.matching import find_best_supplier  # noqa: E402
+
+SEEDED = [seed_supplier(i) for i in ("SUP-001", "SUP-002", "SUP-003")]
+
+
+@pytest.mark.parametrize(
+    "printed, expected",
+    [
+        ("ABC Office Solutions (Pty) Ltd", "SUP-001"),
+        ("Metro Cleaning Services CC", "SUP-002"),
+        ("Digital Print Co (Pty) Ltd", "SUP-003"),
+        ("Nexus Advisory Partners", None),
+        ("Secure IT Solutions (Pty) Ltd", None),
+        ("Prestige Catering & Events", None),
+    ],
+)
+def test_sample_supplier_names_match_as_expected(printed, expected):
+    match = find_best_supplier(printed, SEEDED, threshold=0.5)
+    assert (match.supplier.id if match.supplier else None) == expected
+
+
+def test_below_threshold_reports_confidence_but_no_supplier():
+    match = find_best_supplier("Metro Logistics", SEEDED, threshold=0.5)
+    assert match.supplier is None and 0 < match.confidence < 0.5
